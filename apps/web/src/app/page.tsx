@@ -3,9 +3,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchAndFiltersHeader } from "@/components/search-and-filters-header";
 
 interface Release {
@@ -48,6 +45,7 @@ export default function Home() {
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
   const [pageSize, setPageSize] = useState(50);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const loadReleases = async () => {
     setLoading(true);
@@ -87,19 +85,6 @@ export default function Home() {
     loadReleases();
   }, [currentPage, pageSize, dateFrom, dateTo, searchQuery]);
 
-  const formatDate = (dateString: string | undefined) => {
-    if (!dateString) return 'N/A';
-    try {
-      return new Date(dateString).toLocaleDateString('en-ZA', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
-    } catch {
-      return dateString;
-    }
-  };
-
   const formatDateISO = (dateString: string | undefined) => {
     if (!dateString) return 'N/A';
     try {
@@ -133,99 +118,43 @@ export default function Home() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setCurrentPage(1); // Reset to first page when searching
+    setIsFilterOpen(false); // Close filter panel on search
     loadReleases();
+  };
+
+  const toggleFilter = () => {
+    setIsFilterOpen(!isFilterOpen);
   };
 
   return (
     <div className="container mx-auto max-w-6xl px-4 pt-24 py-6">
-      <SearchAndFiltersHeader />
+      <SearchAndFiltersHeader
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        onSearchSubmit={handleSearch}
+        dateFrom={dateFrom}
+        onDateFromChange={setDateFrom}
+        dateTo={dateTo}
+        onDateToChange={setDateTo}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+        onFilterToggle={toggleFilter}
+        isFilterOpen={isFilterOpen}
+      />
       
-      <div className="mb-6 rounded-lg bg-white p-6 shadow-md dark:bg-gray-800">
-        <form onSubmit={handleSearch} className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-5">
-          <div className="md:col-span-2">
-            <Label htmlFor="search">
-              Search
-            </Label>
-            <Input
-              type="text"
-              id="search"
-              placeholder="Search tenders..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          
-          <div>
-            <Label htmlFor="dateFrom">
-              From Date:
-            </Label>
-            <Input
-              type="date"
-              id="dateFrom"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-            />
-          </div>
-          
-          <div>
-            <Label htmlFor="dateTo">
-              To Date:
-            </Label>
-            <Input
-              type="date"
-              id="dateTo"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-            />
-          </div>
-          
-          <div className="flex items-end">
-            <Button
-              type="submit"
-              className="w-full"
-            >
-              Search
-            </Button>
-          </div>
-        </form>
-        
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-          <div>
-            <Label htmlFor="pageSize">
-              Page Size:
-            </Label>
-            <Select value={pageSize.toString()} onValueChange={(value) => setPageSize(Number(value))}>
-              <SelectTrigger id="pageSize">
-                <SelectValue placeholder="Select page size" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="10">10</SelectItem>
-                <SelectItem value="50">50</SelectItem>
-                <SelectItem value="100">100</SelectItem>
-                <SelectItem value="500">500</SelectItem>
-                <SelectItem value="1000">1000</SelectItem>
-                <SelectItem value="5000">5000</SelectItem>
-                <SelectItem value="10000">10000</SelectItem>
-                <SelectItem value="20000">20000</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </div>
-
       {loading && (
-        <div className="mb-6 rounded-lg bg-white p-8 text-center shadow-md dark:bg-gray-800">
-          <p className="text-gray-600 dark:text-gray-300">Loading...</p>
+        <div className="mb-6 rounded-lg bg-white p-8 text-center shadow-md">
+          <p className="text-gray-600">Loading...</p>
         </div>
       )}
 
       {error && (
-        <div className="mb-6 rounded-lg bg-red-100 p-4 text-red-700 dark:bg-red-900 dark:text-red-100">
+        <div className="mb-6 rounded-lg bg-red-100 p-4 text-red-700">
           {error}
         </div>
       )}
 
-      <div className="mb-4 flex justify-between text-sm text-gray-600 dark:text-gray-300">
+      <div className="mb-4 flex justify-between text-sm text-gray-600">
         <span>Total: {totalReleases}</span>
         <span>Page: {currentPage}</span>
       </div>
@@ -252,22 +181,22 @@ export default function Home() {
             <Link 
               key={release.ocid} 
               href={`/detail?ocid=${encodeURIComponent(release.ocid)}`}
-              className={`block rounded-lg border-l-4 bg-white p-5 shadow transition-all hover:shadow-md dark:bg-gray-800 ${getStatusClass(tender.status)}`}
+              className={`block rounded-lg border-l-4 bg-white p-5 shadow transition-all hover:shadow-md ${getStatusClass(tender.status)}`}
             >
               {tender.description && (
-                <div className="mb-3 border-b border-gray-200 pb-3 text-gray-700 dark:border-gray-700 dark:text-gray-300">
+                <div className="mb-3 border-b border-gray-200 pb-3 text-gray-700">
                   {tender.description}
                 </div>
               )}
               
               <div className="space-y-2">
-                <div className="text-gray-800 dark:text-gray-200">
+                <div className="text-gray-800">
                   {procuringEntity.name || buyer.name || 'N/A'}
                 </div>
-                <div className="text-gray-600 dark:text-gray-400">
+                <div className="text-gray-600">
                   {tender.procurementMethodDetails || tender.procurementMethod || 'N/A'}
                 </div>
-                <div className="text-sm text-gray-500 dark:text-gray-500">
+                <div className="text-sm text-gray-500">
                   {formatDateISO(tenderPeriod.startDate)}<br />
                   {formatDateISO(tenderPeriod.endDate)}
                 </div>
@@ -277,8 +206,8 @@ export default function Home() {
         })}
         
         {releases.length === 0 && !loading && !error && (
-          <div className="col-span-full rounded-lg bg-white p-8 text-center shadow-md dark:bg-gray-800">
-            <p className="text-gray-600 dark:text-gray-300">No releases found for the selected criteria.</p>
+          <div className="col-span-full rounded-lg bg-white p-8 text-center shadow-md">
+            <p className="text-gray-600">No releases found for the selected criteria.</p>
           </div>
         )}
       </div>

@@ -17,7 +17,7 @@ export default function Header() {
 							<Link 
 								key={to} 
 								href={to}
-								className="text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+								className="text-gray-700 hover:text-gray-900"
 							>
 								{label}
 							</Link>
@@ -28,7 +28,7 @@ export default function Header() {
 					<ModeToggle />
 				</div>
 			</div>
-			<hr className="border-gray-200 dark:border-gray-700" />
+			<hr className="border-gray-200" />
 		</div>
 	);
 }
