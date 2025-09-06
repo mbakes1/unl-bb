@@ -2,6 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Release {
   ocid: string;
@@ -129,59 +133,57 @@ export default function Home() {
       <div className="mb-6 rounded-lg bg-white p-6 shadow-md dark:bg-gray-800">
         <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-4">
           <div>
-            <label htmlFor="dateFrom" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <Label htmlFor="dateFrom">
               From Date:
-            </label>
-            <input
+            </Label>
+            <Input
               type="date"
               id="dateFrom"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
             />
           </div>
           
           <div>
-            <label htmlFor="dateTo" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <Label htmlFor="dateTo">
               To Date:
-            </label>
-            <input
+            </Label>
+            <Input
               type="date"
               id="dateTo"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
             />
           </div>
           
           <div>
-            <label htmlFor="pageSize" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <Label htmlFor="pageSize">
               Page Size:
-            </label>
-            <select
-              id="pageSize"
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-            >
-              <option value="10">10</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-              <option value="500">500</option>
-              <option value="1000">1000</option>
-              <option value="5000">5000</option>
-              <option value="10000">10000</option>
-              <option value="20000">20000</option>
-            </select>
+            </Label>
+            <Select value={pageSize.toString()} onValueChange={(value) => setPageSize(Number(value))}>
+              <SelectTrigger id="pageSize">
+                <SelectValue placeholder="Select page size" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+                <SelectItem value="500">500</SelectItem>
+                <SelectItem value="1000">1000</SelectItem>
+                <SelectItem value="5000">5000</SelectItem>
+                <SelectItem value="10000">10000</SelectItem>
+                <SelectItem value="20000">20000</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           
           <div className="flex items-end">
-            <button
+            <Button
               onClick={loadReleases}
-              className="w-full rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-blue-500 dark:hover:bg-blue-600"
+              className="w-full"
             >
               Load Releases
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -257,20 +259,20 @@ export default function Home() {
       </div>
 
       <div className="flex justify-center gap-2">
-        <button
+        <Button
           onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
           disabled={currentPage <= 1}
-          className="rounded-md bg-gray-200 px-4 py-2 text-gray-700 hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+          variant="outline"
         >
           Previous
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={() => setCurrentPage(prev => prev + 1)}
           disabled={releases.length < pageSize}
-          className="rounded-md bg-gray-200 px-4 py-2 text-gray-700 hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+          variant="outline"
         >
           Next
-        </button>
+        </Button>
       </div>
     </div>
   );
