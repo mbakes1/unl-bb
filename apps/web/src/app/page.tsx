@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchAndFiltersHeader } from "@/components/search-and-filters-header";
 
 interface Release {
   ocid: string;
@@ -46,6 +47,7 @@ export default function Home() {
   const [dateFrom, setDateFrom] = useState('2024-01-01');
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
   const [pageSize, setPageSize] = useState(50);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const loadReleases = async () => {
     setLoading(true);
@@ -58,6 +60,11 @@ export default function Home() {
         dateFrom,
         dateTo
       });
+      
+      // Add search query if present
+      if (searchQuery) {
+        params.append('search', searchQuery);
+      }
       
       const response = await fetch(`/api/OCDSReleases?${params}`);
       
@@ -78,7 +85,7 @@ export default function Home() {
 
   useEffect(() => {
     loadReleases();
-  }, [currentPage, pageSize, dateFrom, dateTo]);
+  }, [currentPage, pageSize, dateFrom, dateTo, searchQuery]);
 
   const formatDate = (dateString: string | undefined) => {
     if (!dateString) return 'N/A';
@@ -123,15 +130,31 @@ export default function Home() {
     return 'border-l-gray-500';
   };
 
-  return (
-    <div className="container mx-auto max-w-6xl px-4 py-6">
-      <header className="mb-8 text-center">
-        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">OCDS Releases</h1>
-        <p className="text-gray-600 dark:text-gray-300">South African Government Procurement Data</p>
-      </header>
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCurrentPage(1); // Reset to first page when searching
+    loadReleases();
+  };
 
+  return (
+    <div className="container mx-auto max-w-6xl px-4 pt-24 py-6">
+      <SearchAndFiltersHeader />
+      
       <div className="mb-6 rounded-lg bg-white p-6 shadow-md dark:bg-gray-800">
-        <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-4">
+        <form onSubmit={handleSearch} className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-5">
+          <div className="md:col-span-2">
+            <Label htmlFor="search">
+              Search
+            </Label>
+            <Input
+              type="text"
+              id="search"
+              placeholder="Search tenders..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          
           <div>
             <Label htmlFor="dateFrom">
               From Date:
@@ -156,6 +179,17 @@ export default function Home() {
             />
           </div>
           
+          <div className="flex items-end">
+            <Button
+              type="submit"
+              className="w-full"
+            >
+              Search
+            </Button>
+          </div>
+        </form>
+        
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <div>
             <Label htmlFor="pageSize">
               Page Size:
@@ -175,15 +209,6 @@ export default function Home() {
                 <SelectItem value="20000">20000</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-          
-          <div className="flex items-end">
-            <Button
-              onClick={loadReleases}
-              className="w-full"
-            >
-              Load Releases
-            </Button>
           </div>
         </div>
       </div>

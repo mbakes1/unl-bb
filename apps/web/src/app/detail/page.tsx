@@ -1,8 +1,22 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { ChevronLeft, Download } from 'lucide-react';
+
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 
 interface Document {
   id: string;
@@ -51,7 +65,6 @@ export default function TenderDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const searchParams = useSearchParams();
-  const router = useRouter();
   const ocid = searchParams.get('ocid');
 
   useEffect(() => {
@@ -103,30 +116,86 @@ export default function TenderDetail() {
 
   if (loading) {
     return (
-      <div className="container mx-auto max-w-4xl px-4 py-6">
-        <div className="rounded-lg bg-white p-8 text-center shadow-md dark:bg-gray-800">
-          <p className="text-gray-600 dark:text-gray-300">Loading tender details...</p>
+      <div className="container mx-auto max-w-6xl px-4 py-6">
+        <div className="mb-6">
+          <Button variant="link" asChild className="mb-4 px-0">
+            <Link href="/">
+              <ChevronLeft className="mr-2 h-4 w-4" />
+              Back to Listings
+            </Link>
+          </Button>
+          <Skeleton className="h-10 w-64 mb-6" />
         </div>
+        
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-8 w-3/4" />
+            <div className="flex gap-2 mt-4">
+              <Skeleton className="h-6 w-24" />
+              <Skeleton className="h-6 w-20" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              <div>
+                <Skeleton className="h-6 w-32 mb-2" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-4/5 mt-2" />
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i}>
+                    <Skeleton className="h-6 w-40 mb-2" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-3/4 mt-1" />
+                  </div>
+                ))}
+              </div>
+              
+              <div>
+                <Skeleton className="h-6 w-48 mb-4" />
+                {[...Array(2)].map((_, i) => (
+                  <div key={i} className="border rounded-lg p-4 mb-4">
+                    <Skeleton className="h-5 w-1/3 mb-2" />
+                    <Skeleton className="h-4 w-full mb-1" />
+                    <Skeleton className="h-4 w-2/3" />
+                    <div className="flex gap-3 mt-2">
+                      <Skeleton className="h-4 w-16" />
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-4 w-20" />
+                    </div>
+                    <Skeleton className="h-9 w-24 mt-4" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="container mx-auto max-w-4xl px-4 py-6">
-        <div className="rounded-lg bg-red-100 p-4 text-red-700 dark:bg-red-900 dark:text-red-100">
-          {error}
-        </div>
+      <div className="container mx-auto max-w-6xl px-4 py-6">
+        <Card className="border-destructive bg-destructive/10">
+          <CardContent className="p-6">
+            <p className="text-destructive">{error}</p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (!release) {
     return (
-      <div className="container mx-auto max-w-4xl px-4 py-6">
-        <div className="rounded-lg bg-white p-8 text-center shadow-md dark:bg-gray-800">
-          <p className="text-gray-600 dark:text-gray-300">No tender details found.</p>
-        </div>
+      <div className="container mx-auto max-w-6xl px-4 py-6">
+        <Card>
+          <CardContent className="p-6 text-center">
+            <p className="text-muted-foreground">No tender details found.</p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -140,134 +209,170 @@ export default function TenderDetail() {
 
   return (
     <div className="container mx-auto max-w-6xl px-4 py-6">
-      <header className="mb-6">
-        <Link 
-          href="/" 
-          className="mb-2 inline-block text-blue-600 hover:text-blue-800 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
-        >
-          ← Back to Listings
-        </Link>
-        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Tender Details</h1>
-      </header>
-
-      <div className="rounded-lg border-l-4 border-blue-500 bg-white p-6 shadow-md dark:bg-gray-800">
-        <div className="mb-6 border-b border-gray-200 pb-4 dark:border-gray-700">
-          <h2 className="mb-3 text-2xl font-bold text-gray-800 dark:text-white">
-            {tender.title || 'Untitled Tender'}
-          </h2>
-          <div className="flex flex-wrap gap-2">
-            <span className="rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-              OCID: {release.ocid}
-            </span>
-            <span className="rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-              ID: {tender.id || 'N/A'}
-            </span>
-          </div>
+      <div className="mb-6">
+        <Breadcrumb className="mb-4">
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link href="/">Home</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage>Tender Details</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+        
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">Tender Details</h1>
         </div>
+      </div>
 
-        <div className="mb-6">
-          <h3 className="mb-2 text-xl font-semibold text-gray-800 dark:text-white">Description</h3>
-          <p className="text-gray-700 dark:text-gray-300">
-            {tender.description || 'No description available'}
-          </p>
-        </div>
-
-        <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-2xl">{tender.title || 'Untitled Tender'}</CardTitle>
+          <CardDescription className="flex flex-wrap gap-2">
+            <Badge variant="secondary">OCID: {release.ocid}</Badge>
+            <Badge variant="secondary">ID: {tender.id || 'N/A'}</Badge>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
           <div>
-            <h3 className="mb-2 text-xl font-semibold text-gray-800 dark:text-white">Procuring Entity</h3>
-            <p className="text-gray-700 dark:text-gray-300">
-              {procuringEntity.name || buyer.name || 'N/A'}
-            </p>
-            {procuringEntity.id && (
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                ID: {procuringEntity.id}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <h3 className="mb-2 text-xl font-semibold text-gray-800 dark:text-white">Procurement Details</h3>
-            <p className="text-gray-700 dark:text-gray-300">
-              <strong>Method:</strong> {tender.procurementMethodDetails || tender.procurementMethod || 'N/A'}
-            </p>
-            <p className="text-gray-700 dark:text-gray-300">
-              <strong>Category:</strong> {tender.mainProcurementCategory || 'N/A'}
-            </p>
-            {tender.additionalProcurementCategories && tender.additionalProcurementCategories.length > 0 && (
-              <p className="text-gray-700 dark:text-gray-300">
-                <strong>Additional Categories:</strong> {tender.additionalProcurementCategories.join(', ')}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <h3 className="mb-2 text-xl font-semibold text-gray-800 dark:text-white">Tender Period</h3>
-            <p className="text-gray-700 dark:text-gray-300">
-              <strong>Start:</strong> {formatDateISO(tenderPeriod.startDate)}
-            </p>
-            <p className="text-gray-700 dark:text-gray-300">
-              <strong>End:</strong> {formatDateISO(tenderPeriod.endDate)}
+            <h3 className="text-lg font-semibold mb-2">Description</h3>
+            <p className="text-muted-foreground">
+              {tender.description || 'No description available'}
             </p>
           </div>
 
-          <div>
-            <h3 className="mb-2 text-xl font-semibold text-gray-800 dark:text-white">Release Information</h3>
-            <p className="text-gray-700 dark:text-gray-300">
-              <strong>Date:</strong> {formatDateISO(release.date)}
-            </p>
-            <p className="text-gray-700 dark:text-gray-300">
-              <strong>Language:</strong> {release.language || 'N/A'}
-            </p>
-            <p className="text-gray-700 dark:text-gray-300">
-              <strong>Tags:</strong> {release.tag ? release.tag.join(', ') : 'N/A'}
-            </p>
-          </div>
-        </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Procuring Entity</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="font-medium">
+                  {procuringEntity.name || buyer.name || 'N/A'}
+                </p>
+                {procuringEntity.id && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    ID: {procuringEntity.id}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
 
-        {documents.length > 0 && (
-          <div>
-            <h3 className="mb-4 text-xl font-semibold text-gray-800 dark:text-white">
-              Documents ({documents.length})
-            </h3>
-            <div className="space-y-4">
-              {documents.map((doc) => (
-                <div 
-                  key={doc.id} 
-                  className="rounded-md border border-gray-200 p-4 dark:border-gray-700"
-                >
-                  <div className="mb-2">
-                    <h4 className="text-lg font-medium text-gray-800 dark:text-white">
-                      {doc.title || 'Untitled Document'}
-                    </h4>
-                    {doc.description && (
-                      <p className="mt-1 text-gray-700 dark:text-gray-300">
-                        {doc.description}
-                      </p>
-                    )}
-                    <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600 dark:text-gray-400">
-                      <span>Format: {doc.format || 'N/A'}</span>
-                      <span>Published: {formatDateISO(doc.datePublished)}</span>
-                      {doc.dateModified && (
-                        <span>Modified: {formatDateISO(doc.dateModified)}</span>
-                      )}
-                    </div>
-                  </div>
-                  {doc.url && (
-                    <a
-                      href={doc.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-block rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-blue-500 dark:hover:bg-blue-600"
-                    >
-                      Download
-                    </a>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Procurement Details</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <p>
+                    <span className="font-medium">Method:</span>{' '}
+                    {tender.procurementMethodDetails || tender.procurementMethod || 'N/A'}
+                  </p>
+                  <p>
+                    <span className="font-medium">Category:</span>{' '}
+                    {tender.mainProcurementCategory || 'N/A'}
+                  </p>
+                  {tender.additionalProcurementCategories && tender.additionalProcurementCategories.length > 0 && (
+                    <p>
+                      <span className="font-medium">Additional Categories:</span>{' '}
+                      {tender.additionalProcurementCategories.join(', ')}
+                    </p>
                   )}
                 </div>
-              ))}
-            </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Tender Period</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <p>
+                    <span className="font-medium">Start:</span>{' '}
+                    {formatDateISO(tenderPeriod.startDate)}
+                  </p>
+                  <p>
+                    <span className="font-medium">End:</span>{' '}
+                    {formatDateISO(tenderPeriod.endDate)}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Release Information</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <p>
+                    <span className="font-medium">Date:</span>{' '}
+                    {formatDateISO(release.date)}
+                  </p>
+                  <p>
+                    <span className="font-medium">Language:</span>{' '}
+                    {release.language || 'N/A'}
+                  </p>
+                  <p>
+                    <span className="font-medium">Tags:</span>{' '}
+                    {release.tag ? release.tag.join(', ') : 'N/A'}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        )}
-      </div>
+
+          {documents.length > 0 && (
+            <div>
+              <h3 className="text-lg font-semibold mb-4">
+                Documents ({documents.length})
+              </h3>
+              <div className="space-y-4">
+                {documents.map((doc) => (
+                  <Card key={doc.id}>
+                    <CardContent className="p-4">
+                      <div className="mb-2">
+                        <h4 className="font-medium text-lg">
+                          {doc.title || 'Untitled Document'}
+                        </h4>
+                        {doc.description && (
+                          <p className="text-muted-foreground mt-1">
+                            {doc.description}
+                          </p>
+                        )}
+                        <div className="flex flex-wrap gap-3 text-sm text-muted-foreground mt-2">
+                          <span>Format: {doc.format || 'N/A'}</span>
+                          <span>Published: {formatDateISO(doc.datePublished)}</span>
+                          {doc.dateModified && (
+                            <span>Modified: {formatDateISO(doc.dateModified)}</span>
+                          )}
+                        </div>
+                      </div>
+                      {doc.url && (
+                        <Button asChild size="sm">
+                          <a
+                            href={doc.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <Download className="mr-2 h-4 w-4" />
+                            Download
+                          </a>
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
