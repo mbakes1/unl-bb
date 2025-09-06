@@ -205,10 +205,21 @@ export default function Home() {
 
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {releases.map((release) => {
-          const tender = release.tender || {};
-          const tenderPeriod = tender.tenderPeriod || {};
-          const procuringEntity = tender.procuringEntity || {};
-          const buyer = release.buyer || {};
+          const tender = release.tender || { 
+            id: '', 
+            title: '', 
+            description: '', 
+            status: '', 
+            procurementMethodDetails: '', 
+            procurementMethod: '', 
+            mainProcurementCategory: '',
+            tenderPeriod: undefined, 
+            procuringEntity: undefined,
+            value: undefined
+          };
+          const tenderPeriod = tender.tenderPeriod || { startDate: undefined, endDate: undefined };
+          const procuringEntity = tender.procuringEntity || { name: undefined, id: undefined };
+          const buyer = release.buyer || { name: undefined };
           
           return (
             <Link 

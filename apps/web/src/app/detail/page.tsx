@@ -132,10 +132,10 @@ export default function TenderDetail() {
   }
 
   const tender = release.tender;
-  const tenderPeriod = tender.tenderPeriod || {};
-  const procuringEntity = tender.procuringEntity || {};
-  const buyer = release.buyer || {};
-  const value = tender.value || {};
+  const tenderPeriod = tender.tenderPeriod || { startDate: undefined, endDate: undefined };
+  const procuringEntity = tender.procuringEntity || { name: undefined, id: undefined };
+  const buyer = release.buyer || { name: undefined };
+  const value = tender.value || { amount: undefined, currency: undefined };
   const documents = tender.documents || [];
 
   return (

@@ -2,9 +2,9 @@ import { NextRequest } from 'next/server';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { ocid: string } }
+  context: { params: Promise<{ ocid: string }> }
 ) {
-  const { ocid } = params;
+  const { ocid } = await context.params;
   
   try {
     const targetUrl = `https://ocds-api.etenders.gov.za/api/OCDSReleases/release/${ocid}`;
