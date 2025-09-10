@@ -4,11 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack --port=3001",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
-    "db:ingest": "tsx scripts/initial-ingest.ts"
+    "db:ingest": "tsx scripts/initial-ingest.ts",
+    "db:bulk-ingest": "tsx scripts/bulk-ingest.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.16.0",
