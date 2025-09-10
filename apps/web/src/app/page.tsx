@@ -145,7 +145,7 @@ export default function Home() {
         isFilterOpen={isFilterOpen}
       />
 
-      <div className="ml-96 px-4 sm:px-6 lg:px-8 py-6">
+      <div className="lg:ml-96 px-4 sm:px-6 lg:px-8 py-6">
         {loading && (
           <div className="mb-6 rounded-lg bg-white p-8 text-center shadow-sm">
             <p className="text-gray-600">Loading...</p>
@@ -163,7 +163,7 @@ export default function Home() {
           <span>Page: {currentPage}</span>
         </div>
 
-        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
           {releases.map((release) => {
             const tender = release.tender || {
               id: "",
