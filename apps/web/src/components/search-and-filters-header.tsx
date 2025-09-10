@@ -117,11 +117,11 @@ export const SearchAndFiltersHeader = ({
     <div className="space-y-4">
       {/* Search Bar */}
       <div>
-        <label className="text-sm font-medium text-gray-700 mb-2 block">
+        <label className="text-sm font-medium text-foreground mb-2 block">
           Search:
         </label>
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="search"
             placeholder="Search tenders..."
@@ -142,7 +142,7 @@ export const SearchAndFiltersHeader = ({
           )}
         </div>
         {localSearchQuery !== searchQuery && (
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             Search will update automatically...
           </p>
         )}
@@ -152,7 +152,7 @@ export const SearchAndFiltersHeader = ({
       <div className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-2 block">
+            <label className="text-sm font-medium text-foreground mb-2 block">
               From Date:
             </label>
             <DatePicker
@@ -164,7 +164,7 @@ export const SearchAndFiltersHeader = ({
           </div>
 
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-2 block">
+            <label className="text-sm font-medium text-foreground mb-2 block">
               To Date:
             </label>
             <DatePicker
@@ -177,7 +177,7 @@ export const SearchAndFiltersHeader = ({
         </div>
 
         <div>
-          <label className="text-sm font-medium text-gray-700 mb-2 block">
+          <label className="text-sm font-medium text-foreground mb-2 block">
             Results per page:
           </label>
           <Select
@@ -214,7 +214,7 @@ export const SearchAndFiltersHeader = ({
         <Button
           type="button"
           size="sm"
-          className="flex-1 bg-gray-900 hover:bg-gray-800"
+          className="flex-1"
           onClick={onApplyFilters}
         >
           Apply Filters
@@ -226,8 +226,8 @@ export const SearchAndFiltersHeader = ({
   return (
     <>
       {/* Desktop Sidebar */}
-      <div className="hidden lg:block fixed left-6 top-6 z-50 w-80 bg-white border border-gray-200 rounded-lg shadow-lg p-6 max-h-[calc(100vh-3rem)] overflow-y-auto">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+      <div className="hidden lg:block fixed left-6 top-6 z-50 w-80 bg-card border border-border rounded-lg shadow-lg p-6 max-h-[calc(100vh-3rem)] overflow-y-auto">
+        <h2 className="text-lg font-semibold text-foreground mb-4">
           Search & Filters
         </h2>
         <FiltersContent />
@@ -237,10 +237,7 @@ export const SearchAndFiltersHeader = ({
       <div className="lg:hidden fixed bottom-6 right-6 z-50">
         <Drawer>
           <DrawerTrigger asChild>
-            <Button
-              size="lg"
-              className="rounded-full shadow-lg bg-gray-900 hover:bg-gray-800"
-            >
+            <Button size="lg" className="rounded-full shadow-lg">
               <Filter className="h-5 w-5 mr-2" />
               Filters
             </Button>

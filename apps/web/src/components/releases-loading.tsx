@@ -6,18 +6,18 @@ export function ReleasesLoading() {
       {Array.from({ length: 6 }).map((_, i) => (
         <div
           key={i}
-          className="rounded-lg border-l-4 border-l-gray-300 bg-white p-5 shadow-sm"
+          className="rounded-lg border-l-4 border-l-muted bg-card p-5 shadow-sm hover:shadow-md transition-shadow"
         >
-          <div className="mb-3 border-b border-gray-200 pb-3">
+          <div className="mb-3 border-b border-border pb-3 space-y-2">
             <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-4/5 mt-2" />
+            <Skeleton className="h-4 w-4/5" />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Skeleton className="h-5 w-3/4" />
             <Skeleton className="h-4 w-2/3" />
-            <div className="space-y-1">
+            <div className="space-y-2">
               <Skeleton className="h-3 w-1/2" />
-              <Skeleton className="h-3 w-1/2" />
+              <Skeleton className="h-3 w-2/5" />
             </div>
           </div>
         </div>

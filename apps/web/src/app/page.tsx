@@ -118,7 +118,7 @@ function HomeContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       <SearchAndFiltersHeader
         searchQuery={searchQuery}
         onSearchChange={handleSearchQueryChange}
@@ -138,9 +138,9 @@ function HomeContent() {
         {isLoading && <ReleasesLoading />}
 
         {error && (
-          <div className="mb-6 rounded-lg bg-red-50 border border-red-200 p-4">
+          <div className="mb-6 rounded-lg bg-destructive/10 border border-destructive/20 p-4">
             <div className="flex justify-between items-center">
-              <p className="text-red-700">{error.message}</p>
+              <p className="text-destructive">{error.message}</p>
               <Button
                 variant="outline"
                 size="sm"
@@ -154,12 +154,12 @@ function HomeContent() {
         )}
 
         {isFetching && !isLoading && (
-          <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 p-3 text-blue-700 text-sm">
+          <div className="mb-4 rounded-lg bg-primary/10 border border-primary/20 p-3 text-primary text-sm">
             Refreshing data...
           </div>
         )}
 
-        <div className="mb-4 flex justify-between items-center text-sm text-gray-600">
+        <div className="mb-4 flex justify-between items-center text-sm text-muted-foreground">
           <span>
             Showing {releases.length} results on page {currentPage}
             {hasNextPage && " (more pages available)"}
@@ -209,26 +209,26 @@ function HomeContent() {
               <Link
                 key={release.ocid}
                 href={`/detail?ocid=${encodeURIComponent(release.ocid)}`}
-                className={`block rounded-lg border-l-4 bg-white p-5 shadow-sm hover:shadow-md transition-all ${getStatusClass(
+                className={`block rounded-lg border-l-4 bg-card p-5 shadow-sm hover:shadow-md transition-all ${getStatusClass(
                   tender.status
                 )}`}
               >
                 {tender.description && (
-                  <div className="mb-3 border-b border-gray-200 pb-3 text-gray-700">
+                  <div className="mb-3 border-b border-border pb-3 text-muted-foreground">
                     {tender.description}
                   </div>
                 )}
 
                 <div className="space-y-2">
-                  <div className="text-gray-800 font-medium">
+                  <div className="text-foreground font-medium">
                     {procuringEntity.name || buyer.name || "N/A"}
                   </div>
-                  <div className="text-gray-600">
+                  <div className="text-muted-foreground">
                     {tender.procurementMethodDetails ||
                       tender.procurementMethod ||
                       "N/A"}
                   </div>
-                  <div className="text-sm text-gray-500">
+                  <div className="text-sm text-muted-foreground">
                     {formatDateISO(tenderPeriod.startDate)}
                     <br />
                     {formatDateISO(tenderPeriod.endDate)}
@@ -239,8 +239,8 @@ function HomeContent() {
           })}
 
           {releases.length === 0 && !isLoading && !error && (
-            <div className="col-span-full rounded-lg bg-white p-8 text-center shadow-sm">
-              <p className="text-gray-600">
+            <div className="col-span-full rounded-lg bg-card p-8 text-center shadow-sm">
+              <p className="text-muted-foreground">
                 No releases found for the selected criteria.
               </p>
             </div>
