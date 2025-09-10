@@ -1,89 +1,31 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
+import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SearchAndFiltersHeader } from "@/components/search-and-filters-header";
-
-interface Release {
-  ocid: string;
-  date: string;
-  tag: string[];
-  tender?: {
-    id: string;
-    title: string;
-    description: string;
-    status: string;
-    procurementMethodDetails: string;
-    procurementMethod: string;
-    mainProcurementCategory: string;
-    tenderPeriod?: {
-      startDate: string;
-      endDate: string;
-    };
-    procuringEntity?: {
-      name: string;
-      id: string;
-    };
-    value?: {
-      amount: number;
-      currency: string;
-    };
-  };
-  buyer?: {
-    name: string;
-  };
-}
+import { ReleasesLoading } from "@/components/releases-loading";
+import { useReleases } from "@/lib/queries";
 
 export default function Home() {
-  const [releases, setReleases] = useState<Release[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalReleases, setTotalReleases] = useState(0);
   const [dateFrom, setDateFrom] = useState("2024-01-01");
   const [dateTo, setDateTo] = useState(new Date().toISOString().split("T")[0]);
   const [pageSize, setPageSize] = useState(50);
   const [searchQuery, setSearchQuery] = useState("");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
-  const loadReleases = async () => {
-    setLoading(true);
-    setError(null);
+  const { data, isLoading, error, refetch, isFetching } = useReleases({
+    pageNumber: currentPage,
+    pageSize,
+    dateFrom,
+    dateTo,
+    searchQuery,
+  });
 
-    try {
-      const params = new URLSearchParams({
-        PageNumber: currentPage.toString(),
-        PageSize: pageSize.toString(),
-        dateFrom,
-        dateTo,
-      });
-
-      // Add search query if present
-      if (searchQuery) {
-        params.append("search", searchQuery);
-      }
-
-      const response = await fetch(`/api/OCDSReleases?${params}`);
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      setReleases(data.releases || []);
-      setTotalReleases(data.releases?.length || 0);
-    } catch (err) {
-      console.error("Error loading releases:", err);
-      setError(`Error loading data: ${(err as Error).message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadReleases();
-  }, [currentPage, pageSize, dateFrom, dateTo, searchQuery]);
+  const releases = data?.releases || [];
+  const totalReleases = releases.length;
 
   const formatDateISO = (dateString: string | undefined) => {
     if (!dateString) return "N/A";
@@ -122,7 +64,6 @@ export default function Home() {
     e.preventDefault();
     setCurrentPage(1); // Reset to first page when searching
     setIsFilterOpen(false); // Close filter panel on search
-    loadReleases();
   };
 
   const toggleFilter = () => {
@@ -146,21 +87,47 @@ export default function Home() {
       />
 
       <div className="lg:ml-96 px-4 sm:px-6 lg:px-8 py-6">
-        {loading && (
-          <div className="mb-6 rounded-lg bg-white p-8 text-center shadow-sm">
-            <p className="text-gray-600">Loading...</p>
-          </div>
-        )}
+        {isLoading && <ReleasesLoading />}
 
         {error && (
-          <div className="mb-6 rounded-lg bg-red-50 border border-red-200 p-4 text-red-700">
-            {error}
+          <div className="mb-6 rounded-lg bg-red-50 border border-red-200 p-4">
+            <div className="flex justify-between items-center">
+              <p className="text-red-700">{error.message}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetch()}
+                disabled={isFetching}
+              >
+                Try Again
+              </Button>
+            </div>
           </div>
         )}
 
-        <div className="mb-4 flex justify-between text-sm text-gray-600">
+        {isFetching && !isLoading && (
+          <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 p-3 text-blue-700 text-sm">
+            Refreshing data...
+          </div>
+        )}
+
+        <div className="mb-4 flex justify-between items-center text-sm text-gray-600">
           <span>Total: {totalReleases}</span>
-          <span>Page: {currentPage}</span>
+          <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="flex items-center gap-2"
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`}
+              />
+              Refresh
+            </Button>
+            <span>Page: {currentPage}</span>
+          </div>
         </div>
 
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
@@ -220,7 +187,7 @@ export default function Home() {
             );
           })}
 
-          {releases.length === 0 && !loading && !error && (
+          {releases.length === 0 && !isLoading && !error && (
             <div className="col-span-full rounded-lg bg-white p-8 text-center shadow-sm">
               <p className="text-gray-600">
                 No releases found for the selected criteria.
