@@ -2,76 +2,11 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-interface OCDSRelease {
-  uri: string;
-  version: string;
-  publishedDate: string;
-  publisher: {
-    name: string;
-    uri: string;
-  };
-  license: string;
-  publicationPolicy: string;
-  releases: Array<{
-    ocid: string;
-    id: string;
-    date: string;
-    tag: string[];
-    initiationType: string;
-    parties: Array<{
-      id: string;
-      name: string;
-      roles: string[];
-    }>;
-    tender?: {
-      id: string;
-      title: string;
-      description: string;
-      status: string;
-      value?: {
-        amount: number;
-        currency: string;
-      };
-      procurementMethod: string;
-      procurementMethodDetails: string;
-      tenderPeriod?: {
-        startDate: string;
-        endDate: string;
-      };
-      enquiryPeriod?: {
-        startDate: string;
-        endDate: string;
-      };
-      hasEnquiries: boolean;
-      eligibilityCriteria: string;
-      awardCriteria: string;
-      awardCriteriaDetails: string;
-      submissionMethod: string[];
-      submissionMethodDetails: string;
-      documents: Array<{
-        id: string;
-        documentType: string;
-        title: string;
-        description: string;
-        url: string;
-        datePublished: string;
-        dateModified: string;
-        format: string;
-        language: string;
-      }>;
-    };
-  }>;
-}
-
-interface OCDSResponse {
-  releases: OCDSRelease[];
-}
-
 async function bulkIngest() {
   console.log("🚀 Starting bulk ingestion from Jan 1, 2024 to now...");
 
-  const startDate = "2024-01-01T00:00:00Z";
-  const endDate = new Date().toISOString();
+  const startDate = "2024-01-01";
+  const endDate = new Date().toISOString().split("T")[0]; // Today in YYYY-MM-DD format
   const pageSize = 10000;
 
   let page = 1;
@@ -82,7 +17,7 @@ async function bulkIngest() {
     try {
       console.log(`📥 Fetching page ${page} (${pageSize} records per page)...`);
 
-      const url = `https://ocds-api.etenders.gov.za/api/OCDSReleases?PageSize=${pageSize}&Page=${page}&PublishedFrom=${startDate}&PublishedTo=${endDate}`;
+      const url = `https://ocds-api.etenders.gov.za/api/OCDSReleases?PageSize=${pageSize}&Page=${page}&dateFrom=${startDate}&dateTo=${endDate}`;
 
       const response = await fetch(url, {
         headers: {
@@ -95,7 +30,7 @@ async function bulkIngest() {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data: OCDSResponse = await response.json();
+      const data = await response.json();
 
       if (!data.releases || data.releases.length === 0) {
         console.log("📄 No more data found, stopping...");
@@ -113,21 +48,34 @@ async function bulkIngest() {
         const batch = data.releases.slice(i, i + batchSize);
 
         const upsertPromises = batch
-          .map((release) => {
-            const firstRelease = release.releases[0];
-            if (!firstRelease) return null;
+          .map((release: any) => {
+            if (!release || !release.ocid) return null;
 
-            return prisma.oCDSRelease.upsert({
-              where: { ocid: firstRelease.ocid },
+            const title = release.tender?.title || "";
+            const buyerName =
+              release.parties?.find((p: any) => p.roles?.includes("buyer"))
+                ?.name || "";
+            const status = release.tender?.status || "";
+            const releaseDate = release.date
+              ? new Date(release.date)
+              : new Date();
+
+            return prisma.release.upsert({
+              where: { ocid: release.ocid },
               update: {
-                data: JSON.stringify(release),
-                lastUpdated: new Date(),
+                data: release,
+                releaseDate,
+                title,
+                buyerName,
+                status,
               },
               create: {
-                ocid: firstRelease.ocid,
-                data: JSON.stringify(release),
-                publishedDate: new Date(release.publishedDate),
-                lastUpdated: new Date(),
+                ocid: release.ocid,
+                data: release,
+                releaseDate,
+                title,
+                buyerName,
+                status,
               },
             });
           })
@@ -173,7 +121,7 @@ async function bulkIngest() {
   }
 
   // Get final count
-  const totalInDb = await prisma.oCDSRelease.count();
+  const totalInDb = await prisma.release.count();
 
   console.log("\n🎉 Bulk ingestion completed!");
   console.log(`📊 Total releases processed: ${totalProcessed}`);
