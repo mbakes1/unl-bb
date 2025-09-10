@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
       select: { data: true },
     });
 
-    const releaseData = releases.map((r) => r.data);
+    const releaseData = releases.map((r: { data: any }) => r.data);
     const totalPages = Math.ceil(totalCount / pageSize);
     const hasNext = page < totalPages;
 
