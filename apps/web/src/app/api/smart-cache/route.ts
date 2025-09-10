@@ -1,20 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// Smart caching endpoint that checks data freshness and updates if needed
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
 
   try {
-    // Check if we have any data in the database
-    const dataCount = await prisma.release.count();
+    // Check when we last updated data
+    const latestRelease = await prisma.release.findFirst({
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    });
 
-    // If no data exists, populate some initial data
-    if (dataCount === 0) {
-      console.log("No data found, populating initial cache...");
-      await populateInitialData();
+    const now = new Date();
+    const lastUpdate = latestRelease?.createdAt || new Date(0);
+    const hoursSinceUpdate =
+      (now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60);
+
+    // If data is older than 6 hours, trigger a background update
+    let shouldUpdate = hoursSinceUpdate > 6;
+
+    // For manual refresh, check for force parameter
+    const forceUpdate = searchParams.get("force") === "true";
+
+    if (shouldUpdate || forceUpdate) {
+      console.log("Data is stale, triggering background update...");
+
+      // Trigger update in background (don't wait for it)
+      updateDataInBackground().catch((error) => {
+        console.error("Background update failed:", error);
+      });
     }
 
-    // Parse query parameters
+    // Always return current data immediately (even if stale)
     const page = parseInt(searchParams.get("PageNumber") || "1");
     const pageSize = Math.min(
       parseInt(searchParams.get("PageSize") || "50"),
@@ -24,7 +42,7 @@ export async function GET(request: NextRequest) {
     const dateTo = searchParams.get("dateTo");
     const searchQuery = searchParams.get("search");
 
-    // Build where clause for filtering
+    // Build where clause
     const where: any = {};
 
     if (dateFrom || dateTo) {
@@ -44,24 +62,6 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    // Check data freshness and trigger background update if needed
-    const latestRelease = await prisma.release.findFirst({
-      orderBy: { createdAt: "desc" },
-      select: { createdAt: true },
-    });
-
-    if (latestRelease) {
-      const hoursSinceUpdate =
-        (Date.now() - latestRelease.createdAt.getTime()) / (1000 * 60 * 60);
-
-      // Trigger background update if data is older than 4 hours
-      if (hoursSinceUpdate > 4) {
-        console.log("Data is stale, triggering background refresh...");
-        // Don't await - let it run in background
-        refreshDataInBackground().catch(console.error);
-      }
-    }
-
     const totalCount = await prisma.release.count({ where });
     const releases = await prisma.release.findMany({
       where,
@@ -77,38 +77,42 @@ export async function GET(request: NextRequest) {
 
     const response: any = {
       releases: releaseData,
+      meta: {
+        lastUpdated: lastUpdate.toISOString(),
+        hoursSinceUpdate: Math.round(hoursSinceUpdate * 10) / 10,
+        totalCount,
+        currentPage: page,
+        totalPages,
+      },
     };
 
     if (hasNext) {
       const nextParams = new URLSearchParams(searchParams);
       nextParams.set("PageNumber", (page + 1).toString());
       response.links = {
-        next: `/api/OCDSReleases?${nextParams.toString()}`,
+        next: `/api/smart-cache?${nextParams.toString()}`,
       };
     }
 
     return NextResponse.json(response, {
       headers: {
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
-        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=3600",
       },
     });
   } catch (error) {
-    console.error("Database error, falling back to external API:", error);
+    console.error("Smart cache error:", error);
 
     // Fallback to external API if database fails
     return fallbackToExternalAPI(request);
   }
 }
 
-// Populate initial data on first request
-async function populateInitialData() {
+// Background update function
+async function updateDataInBackground() {
   try {
     const response = await fetch(
-      "https://ocds-api.etenders.gov.za/api/OCDSReleases?pageSize=50&PageNumber=1"
+      "https://ocds-api.etenders.gov.za/api/OCDSReleases?pageSize=100&PageNumber=1"
     );
 
     if (!response.ok) {
@@ -118,50 +122,7 @@ async function populateInitialData() {
     const data = await response.json();
     const releases = data.releases || [];
 
-    console.log(`Populating ${releases.length} initial releases...`);
-
-    for (const release of releases) {
-      try {
-        const title = release.tender?.title || "";
-        const buyerName =
-          release.buyer?.name || release.tender?.procuringEntity?.name || "";
-        const status = release.tender?.status || "";
-        const releaseDate = release.date ? new Date(release.date) : new Date();
-
-        await prisma.release.create({
-          data: {
-            ocid: release.ocid,
-            releaseDate,
-            data: release,
-            title,
-            buyerName,
-            status,
-          },
-        });
-      } catch (error) {
-        // Skip duplicates or other errors
-        console.error(`Error creating release ${release.ocid}:`, error);
-      }
-    }
-
-    console.log("Initial data population completed");
-  } catch (error) {
-    console.error("Failed to populate initial data:", error);
-    throw error;
-  }
-}
-
-// Background refresh function
-async function refreshDataInBackground() {
-  try {
-    const response = await fetch(
-      "https://ocds-api.etenders.gov.za/api/OCDSReleases?pageSize=100&PageNumber=1"
-    );
-
-    if (!response.ok) return;
-
-    const data = await response.json();
-    const releases = data.releases || [];
+    console.log(`Updating ${releases.length} releases in background...`);
 
     for (const release of releases) {
       try {
@@ -190,15 +151,18 @@ async function refreshDataInBackground() {
           },
         });
       } catch (error) {
-        // Continue with other releases
+        console.error(`Error updating release ${release.ocid}:`, error);
       }
     }
+
+    console.log("Background update completed successfully");
   } catch (error) {
-    console.error("Background refresh failed:", error);
+    console.error("Background update failed:", error);
+    throw error;
   }
 }
 
-// Fallback to external API
+// Fallback to external API if database is empty or fails
 async function fallbackToExternalAPI(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const queryString = searchParams.toString();
@@ -216,29 +180,20 @@ async function fallbackToExternalAPI(request: NextRequest) {
 
     const data = await response.json();
 
-    return NextResponse.json(data, {
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
+    return NextResponse.json({
+      ...data,
+      meta: {
+        source: "external_api_fallback",
+        message: "Data served from external API due to cache unavailability",
       },
     });
   } catch (error) {
     return NextResponse.json(
-      { error: "API error", message: (error as Error).message },
+      {
+        error: "Both cache and external API failed",
+        message: (error as Error).message,
+      },
       { status: 500 }
     );
   }
-}
-
-export async function OPTIONS() {
-  return new Response(null, {
-    status: 200,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-    },
-  });
 }
