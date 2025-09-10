@@ -111,8 +111,14 @@ export async function GET(request: NextRequest) {
 // Background update function
 async function updateDataInBackground() {
   try {
+    // Add required date parameters
+    const dateTo = new Date().toISOString().split("T")[0]; // Today
+    const dateFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split("T")[0]; // 30 days ago
+
     const response = await fetch(
-      "https://ocds-api.etenders.gov.za/api/OCDSReleases?pageSize=100&PageNumber=1"
+      `https://ocds-api.etenders.gov.za/api/OCDSReleases?pageSize=100&PageNumber=1&dateFrom=${dateFrom}&dateTo=${dateTo}`
     );
 
     if (!response.ok) {

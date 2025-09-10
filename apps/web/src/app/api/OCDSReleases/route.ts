@@ -107,8 +107,14 @@ export async function GET(request: NextRequest) {
 // Populate initial data on first request
 async function populateInitialData() {
   try {
+    // Add required date parameters
+    const dateTo = new Date().toISOString().split("T")[0]; // Today
+    const dateFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split("T")[0]; // 30 days ago
+
     const response = await fetch(
-      "https://ocds-api.etenders.gov.za/api/OCDSReleases?pageSize=50&PageNumber=1"
+      `https://ocds-api.etenders.gov.za/api/OCDSReleases?pageSize=50&PageNumber=1&dateFrom=${dateFrom}&dateTo=${dateTo}`
     );
 
     if (!response.ok) {
@@ -154,8 +160,14 @@ async function populateInitialData() {
 // Background refresh function
 async function refreshDataInBackground() {
   try {
+    // Add required date parameters
+    const dateTo = new Date().toISOString().split("T")[0]; // Today
+    const dateFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split("T")[0]; // 30 days ago
+
     const response = await fetch(
-      "https://ocds-api.etenders.gov.za/api/OCDSReleases?pageSize=100&PageNumber=1"
+      `https://ocds-api.etenders.gov.za/api/OCDSReleases?pageSize=100&PageNumber=1&dateFrom=${dateFrom}&dateTo=${dateTo}`
     );
 
     if (!response.ok) return;

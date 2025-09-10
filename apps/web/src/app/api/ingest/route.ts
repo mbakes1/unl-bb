@@ -12,9 +12,14 @@ export async function GET(request: Request) {
     console.log("Starting data ingestion...");
 
     // Fetch data from the external OCDS API
-    // We'll start with a reasonable page size and can implement pagination later
+    // Fetch data from the external OCDS API with required date parameters
+    const dateTo = new Date().toISOString().split("T")[0]; // Today
+    const dateFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split("T")[0]; // 30 days ago
+
     const response = await fetch(
-      "https://ocds-api.etenders.gov.za/api/OCDSReleases?pageSize=100&PageNumber=1"
+      `https://ocds-api.etenders.gov.za/api/OCDSReleases?pageSize=100&PageNumber=1&dateFrom=${dateFrom}&dateTo=${dateTo}`
     );
 
     if (!response.ok) {

@@ -5,9 +5,14 @@ export async function GET() {
   try {
     console.log("Starting test ingestion...");
 
-    // Fetch just one page for testing
+    // Fetch just one page for testing with required date parameters
+    const dateTo = new Date().toISOString().split("T")[0]; // Today
+    const dateFrom = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split("T")[0]; // 7 days ago
+
     const response = await fetch(
-      "https://ocds-api.etenders.gov.za/api/OCDSReleases?pageSize=10&PageNumber=1"
+      `https://ocds-api.etenders.gov.za/api/OCDSReleases?pageSize=10&PageNumber=1&dateFrom=${dateFrom}&dateTo=${dateTo}`
     );
 
     if (!response.ok) {
