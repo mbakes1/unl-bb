@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,13 +9,18 @@ import { SearchAndFiltersHeader } from "@/components/search-and-filters-header";
 import { ReleasesLoading } from "@/components/releases-loading";
 import { useReleases } from "@/lib/queries";
 
-export default function Home() {
-  const [currentPage, setCurrentPage] = useState(1);
-  const [dateFrom, setDateFrom] = useState("2024-01-01");
-  const [dateTo, setDateTo] = useState(new Date().toISOString().split("T")[0]);
-  const [pageSize, setPageSize] = useState(50);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
+function HomeContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Initialize state from URL parameters
+  const currentPage = parseInt(searchParams.get("page") || "1", 10);
+  const dateFrom = searchParams.get("dateFrom") || "2024-01-01";
+  const dateTo =
+    searchParams.get("dateTo") || new Date().toISOString().split("T")[0];
+  const pageSize = parseInt(searchParams.get("pageSize") || "50", 10);
+  const searchQuery = searchParams.get("search") || "";
+  const isFilterOpen = searchParams.get("filterOpen") === "true";
 
   const { data, isLoading, error, refetch, isFetching } = useReleases({
     pageNumber: currentPage,
@@ -25,7 +31,24 @@ export default function Home() {
   });
 
   const releases = data?.releases || [];
-  const totalReleases = releases.length;
+  const hasNextPage = Boolean(data?.links?.next);
+
+  // Helper function to update URL parameters
+  const updateUrlParams = (
+    updates: Record<string, string | number | boolean>
+  ) => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === "" || value === null || value === undefined) {
+        params.delete(key);
+      } else {
+        params.set(key, String(value));
+      }
+    });
+
+    router.push(`?${params.toString()}`, { scroll: false });
+  };
 
   const formatDateISO = (dateString: string | undefined) => {
     if (!dateString) return "N/A";
@@ -62,28 +85,53 @@ export default function Home() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    setCurrentPage(1); // Reset to first page when searching
-    setIsFilterOpen(false); // Close filter panel on search
+    updateUrlParams({ page: 1, filterOpen: false }); // Reset to first page when searching
   };
 
   const toggleFilter = () => {
-    setIsFilterOpen(!isFilterOpen);
+    updateUrlParams({ filterOpen: !isFilterOpen });
+  };
+
+  const handlePageChange = (newPage: number) => {
+    updateUrlParams({ page: newPage });
+  };
+
+  const handleDateFromChange = (newDateFrom: string) => {
+    updateUrlParams({ dateFrom: newDateFrom, page: 1 });
+  };
+
+  const handleDateToChange = (newDateTo: string) => {
+    updateUrlParams({ dateTo: newDateTo, page: 1 });
+  };
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    updateUrlParams({ pageSize: newPageSize, page: 1 });
+  };
+
+  const handleSearchQueryChange = (newSearchQuery: string) => {
+    updateUrlParams({ search: newSearchQuery, page: 1 });
+  };
+
+  const handleApplyFilters = () => {
+    // This will trigger a refetch with current filter values
+    updateUrlParams({ page: 1 });
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <SearchAndFiltersHeader
         searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
+        onSearchChange={handleSearchQueryChange}
         onSearchSubmit={handleSearch}
         dateFrom={dateFrom}
-        onDateFromChange={setDateFrom}
+        onDateFromChange={handleDateFromChange}
         dateTo={dateTo}
-        onDateToChange={setDateTo}
+        onDateToChange={handleDateToChange}
         pageSize={pageSize}
-        onPageSizeChange={setPageSize}
+        onPageSizeChange={handlePageSizeChange}
         onFilterToggle={toggleFilter}
         isFilterOpen={isFilterOpen}
+        onApplyFilters={handleApplyFilters}
       />
 
       <div className="lg:ml-96 px-4 sm:px-6 lg:px-8 py-6">
@@ -112,7 +160,10 @@ export default function Home() {
         )}
 
         <div className="mb-4 flex justify-between items-center text-sm text-gray-600">
-          <span>Total: {totalReleases}</span>
+          <span>
+            Showing {releases.length} results on page {currentPage}
+            {hasNextPage && " (more pages available)"}
+          </span>
           <div className="flex items-center gap-4">
             <Button
               variant="outline"
@@ -198,15 +249,15 @@ export default function Home() {
 
         <div className="flex justify-center gap-2">
           <Button
-            onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+            onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
             disabled={currentPage <= 1}
             variant="outline"
           >
             Previous
           </Button>
           <Button
-            onClick={() => setCurrentPage((prev) => prev + 1)}
-            disabled={releases.length < pageSize}
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={!hasNextPage}
             variant="outline"
           >
             Next
@@ -214,5 +265,13 @@ export default function Home() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<ReleasesLoading />}>
+      <HomeContent />
+    </Suspense>
   );
 }

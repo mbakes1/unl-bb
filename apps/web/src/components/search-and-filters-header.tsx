@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Filter } from "lucide-react";
+import { Search, Filter, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -19,6 +19,7 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer";
 import React from "react";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 
 interface SearchAndFiltersHeaderProps {
   searchQuery: string;
@@ -32,6 +33,7 @@ interface SearchAndFiltersHeaderProps {
   onPageSizeChange: (value: number) => void;
   onFilterToggle: () => void;
   isFilterOpen: boolean;
+  onApplyFilters: () => void;
 }
 
 export const SearchAndFiltersHeader = ({
@@ -44,13 +46,44 @@ export const SearchAndFiltersHeader = ({
   onDateToChange,
   pageSize,
   onPageSizeChange,
+  onApplyFilters,
 }: SearchAndFiltersHeaderProps) => {
+  // Local state for form inputs
+  const [localSearchQuery, setLocalSearchQuery] = React.useState(searchQuery);
   const [dateFromObj, setDateFromObj] = React.useState<Date | undefined>(
     dateFrom ? new Date(dateFrom) : undefined
   );
   const [dateToObj, setDateToObj] = React.useState<Date | undefined>(
     dateTo ? new Date(dateTo) : undefined
   );
+  const [localPageSize, setLocalPageSize] = React.useState(pageSize);
+
+  // Debounced search query
+  const debouncedSearchQuery = useDebouncedValue(localSearchQuery, 500);
+
+  // Update parent when debounced value changes
+  React.useEffect(() => {
+    if (debouncedSearchQuery !== searchQuery) {
+      onSearchChange(debouncedSearchQuery);
+    }
+  }, [debouncedSearchQuery, searchQuery, onSearchChange]);
+
+  // Sync local state with props when they change externally
+  React.useEffect(() => {
+    setLocalSearchQuery(searchQuery);
+  }, [searchQuery]);
+
+  React.useEffect(() => {
+    setDateFromObj(dateFrom ? new Date(dateFrom) : undefined);
+  }, [dateFrom]);
+
+  React.useEffect(() => {
+    setDateToObj(dateTo ? new Date(dateTo) : undefined);
+  }, [dateTo]);
+
+  React.useEffect(() => {
+    setLocalPageSize(pageSize);
+  }, [pageSize]);
 
   const handleDateFromChange = (date: Date | undefined) => {
     setDateFromObj(date);
@@ -60,6 +93,12 @@ export const SearchAndFiltersHeader = ({
   const handleDateToChange = (date: Date | undefined) => {
     setDateToObj(date);
     onDateToChange(date ? date.toISOString().split("T")[0] : "");
+  };
+
+  const handlePageSizeChange = (value: string) => {
+    const newSize = Number(value);
+    setLocalPageSize(newSize);
+    onPageSizeChange(newSize);
   };
 
   const resetFilters = () => {
@@ -78,62 +117,85 @@ export const SearchAndFiltersHeader = ({
     <div className="space-y-4">
       {/* Search Bar */}
       <div>
-        <form onSubmit={onSearchSubmit} className="relative">
+        <label className="text-sm font-medium text-gray-700 mb-2 block">
+          Search:
+        </label>
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <Input
             type="search"
             placeholder="Search tenders..."
             className="pl-10 w-full"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
+            value={localSearchQuery}
+            onChange={(e) => setLocalSearchQuery(e.target.value)}
           />
-        </form>
+          {localSearchQuery && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+              onClick={() => setLocalSearchQuery("")}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+        {localSearchQuery !== searchQuery && (
+          <p className="text-xs text-gray-500 mt-1">
+            Search will update automatically...
+          </p>
+        )}
       </div>
 
       {/* Filters */}
       <div className="space-y-3">
-        <div>
-          <label className="text-sm font-medium text-gray-700 mb-2 block">
-            From Date:
-          </label>
-          <DatePicker
-            date={dateFromObj}
-            onDateChange={handleDateFromChange}
-            placeholder="Select start date"
-          />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-2 block">
+              From Date:
+            </label>
+            <DatePicker
+              date={dateFromObj}
+              onDateChange={handleDateFromChange}
+              placeholder="Select start date"
+              className="w-full"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-2 block">
+              To Date:
+            </label>
+            <DatePicker
+              date={dateToObj}
+              onDateChange={handleDateToChange}
+              placeholder="Select end date"
+              className="w-full"
+            />
+          </div>
         </div>
 
         <div>
           <label className="text-sm font-medium text-gray-700 mb-2 block">
-            To Date:
-          </label>
-          <DatePicker
-            date={dateToObj}
-            onDateChange={handleDateToChange}
-            placeholder="Select end date"
-          />
-        </div>
-
-        <div>
-          <label className="text-sm font-medium text-gray-700 mb-2 block">
-            Page Size:
+            Results per page:
           </label>
           <Select
-            value={pageSize.toString()}
-            onValueChange={(value) => onPageSizeChange(Number(value))}
+            value={localPageSize.toString()}
+            onValueChange={handlePageSizeChange}
           >
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Select page size" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="10">10</SelectItem>
-              <SelectItem value="50">50</SelectItem>
-              <SelectItem value="100">100</SelectItem>
-              <SelectItem value="500">500</SelectItem>
-              <SelectItem value="1000">1000</SelectItem>
-              <SelectItem value="5000">5000</SelectItem>
-              <SelectItem value="10000">10000</SelectItem>
-              <SelectItem value="20000">20000</SelectItem>
+              <SelectItem value="10">10 results</SelectItem>
+              <SelectItem value="50">50 results</SelectItem>
+              <SelectItem value="100">100 results</SelectItem>
+              <SelectItem value="500">500 results</SelectItem>
+              <SelectItem value="1000">1000 results</SelectItem>
+              <SelectItem value="5000">5000 results</SelectItem>
+              <SelectItem value="10000">10000 results</SelectItem>
+              <SelectItem value="20000">20000 results</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -147,13 +209,13 @@ export const SearchAndFiltersHeader = ({
           className="flex-1"
           onClick={resetFilters}
         >
-          Reset
+          Reset All
         </Button>
         <Button
-          type="submit"
+          type="button"
           size="sm"
           className="flex-1 bg-gray-900 hover:bg-gray-800"
-          onClick={onSearchSubmit}
+          onClick={onApplyFilters}
         >
           Apply Filters
         </Button>
@@ -164,7 +226,7 @@ export const SearchAndFiltersHeader = ({
   return (
     <>
       {/* Desktop Sidebar */}
-      <div className="hidden lg:block fixed left-6 top-6 z-50 w-80 bg-white border border-gray-200 rounded-lg shadow-lg p-6">
+      <div className="hidden lg:block fixed left-6 top-6 z-50 w-80 bg-white border border-gray-200 rounded-lg shadow-lg p-6 max-h-[calc(100vh-3rem)] overflow-y-auto">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
           Search & Filters
         </h2>

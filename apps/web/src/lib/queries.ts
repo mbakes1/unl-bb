@@ -75,6 +75,9 @@ export interface Document {
 
 interface ReleasesResponse {
   releases: Release[];
+  links?: {
+    next?: string;
+  };
 }
 
 interface ReleasesParams {

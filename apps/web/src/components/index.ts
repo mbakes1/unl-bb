@@ -1,3 +1,4 @@
+export * from "./lenis-provider";
 export * from "./loader";
 export * from "./mode-toggle";
 export * from "./providers";
