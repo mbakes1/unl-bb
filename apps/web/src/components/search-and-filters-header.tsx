@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Filter, X } from "lucide-react";
+import { Search, Filter, X, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -34,6 +34,23 @@ interface SearchAndFiltersHeaderProps {
   onFilterToggle: () => void;
   isFilterOpen: boolean;
   onApplyFilters: () => void;
+  // New filter props
+  status: string;
+  onStatusChange: (value: string) => void;
+  procurementMethod: string;
+  onProcurementMethodChange: (value: string) => void;
+  buyerName: string;
+  onBuyerNameChange: (value: string) => void;
+  minValue: string;
+  onMinValueChange: (value: string) => void;
+  maxValue: string;
+  onMaxValueChange: (value: string) => void;
+  currency: string;
+  onCurrencyChange: (value: string) => void;
+  sortBy: string;
+  onSortByChange: (value: string) => void;
+  sortOrder: 'asc' | 'desc';
+  onSortOrderChange: (value: 'asc' | 'desc') => void;
 }
 
 export const SearchAndFiltersHeader = ({
@@ -47,6 +64,23 @@ export const SearchAndFiltersHeader = ({
   pageSize,
   onPageSizeChange,
   onApplyFilters,
+  // New filter props
+  status,
+  onStatusChange,
+  procurementMethod,
+  onProcurementMethodChange,
+  buyerName,
+  onBuyerNameChange,
+  minValue,
+  onMinValueChange,
+  maxValue,
+  onMaxValueChange,
+  currency,
+  onCurrencyChange,
+  sortBy,
+  onSortByChange,
+  sortOrder,
+  onSortOrderChange,
 }: SearchAndFiltersHeaderProps) => {
   // Local state for form inputs
   const [localSearchQuery, setLocalSearchQuery] = React.useState(searchQuery);
@@ -57,6 +91,14 @@ export const SearchAndFiltersHeader = ({
     dateTo ? new Date(dateTo) : undefined
   );
   const [localPageSize, setLocalPageSize] = React.useState(pageSize);
+  const [localStatus, setLocalStatus] = React.useState(status);
+  const [localProcurementMethod, setLocalProcurementMethod] = React.useState(procurementMethod);
+  const [localBuyerName, setLocalBuyerName] = React.useState(buyerName);
+  const [localMinValue, setLocalMinValue] = React.useState(minValue);
+  const [localMaxValue, setLocalMaxValue] = React.useState(maxValue);
+  const [localCurrency, setLocalCurrency] = React.useState(currency);
+  const [localSortBy, setLocalSortBy] = React.useState(sortBy);
+  const [localSortOrder, setLocalSortOrder] = React.useState(sortOrder);
 
   // Debounced search query
   const debouncedSearchQuery = useDebouncedValue(localSearchQuery, 500);
@@ -85,6 +127,38 @@ export const SearchAndFiltersHeader = ({
     setLocalPageSize(pageSize);
   }, [pageSize]);
 
+  React.useEffect(() => {
+    setLocalStatus(status);
+  }, [status]);
+
+  React.useEffect(() => {
+    setLocalProcurementMethod(procurementMethod);
+  }, [procurementMethod]);
+
+  React.useEffect(() => {
+    setLocalBuyerName(buyerName);
+  }, [buyerName]);
+
+  React.useEffect(() => {
+    setLocalMinValue(minValue);
+  }, [minValue]);
+
+  React.useEffect(() => {
+    setLocalMaxValue(maxValue);
+  }, [maxValue]);
+
+  React.useEffect(() => {
+    setLocalCurrency(currency);
+  }, [currency]);
+
+  React.useEffect(() => {
+    setLocalSortBy(sortBy);
+  }, [sortBy]);
+
+  React.useEffect(() => {
+    setLocalSortOrder(sortOrder);
+  }, [sortOrder]);
+
   const handleDateFromChange = (date: Date | undefined) => {
     setDateFromObj(date);
     onDateFromChange(date ? date.toISOString().split("T")[0] : "");
@@ -101,6 +175,48 @@ export const SearchAndFiltersHeader = ({
     onPageSizeChange(newSize);
   };
 
+  const handleStatusChange = (value: string) => {
+    setLocalStatus(value);
+    onStatusChange(value);
+  };
+
+  const handleProcurementMethodChange = (value: string) => {
+    setLocalProcurementMethod(value);
+    onProcurementMethodChange(value);
+  };
+
+  const handleBuyerNameChange = (value: string) => {
+    setLocalBuyerName(value);
+    onBuyerNameChange(value);
+  };
+
+  const handleMinValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setLocalMinValue(value);
+    onMinValueChange(value);
+  };
+
+  const handleMaxValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setLocalMaxValue(value);
+    onMaxValueChange(value);
+  };
+
+  const handleCurrencyChange = (value: string) => {
+    setLocalCurrency(value);
+    onCurrencyChange(value);
+  };
+
+  const handleSortByChange = (value: string) => {
+    setLocalSortBy(value);
+    onSortByChange(value);
+  };
+
+  const handleSortOrderChange = (value: 'asc' | 'desc') => {
+    setLocalSortOrder(value);
+    onSortOrderChange(value);
+  };
+
   const resetFilters = () => {
     const today = new Date();
     const startOfYear = new Date(2024, 0, 1);
@@ -111,6 +227,14 @@ export const SearchAndFiltersHeader = ({
     onDateToChange(today.toISOString().split("T")[0]);
     onSearchChange("");
     onPageSizeChange(50);
+    onStatusChange("");
+    onProcurementMethodChange("");
+    onBuyerNameChange("");
+    onMinValueChange("");
+    onMaxValueChange("");
+    onCurrencyChange("");
+    onSortByChange("releaseDate");
+    onSortOrderChange("desc");
   };
 
   const FiltersContent = () => (
@@ -173,6 +297,132 @@ export const SearchAndFiltersHeader = ({
               placeholder="Select end date"
               className="w-full"
             />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Status:
+            </label>
+            <Input
+              type="text"
+              placeholder="Filter by status..."
+              value={localStatus}
+              onChange={(e) => handleStatusChange(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Procurement Method:
+            </label>
+            <Input
+              type="text"
+              placeholder="Filter by procurement method..."
+              value={localProcurementMethod}
+              onChange={(e) => handleProcurementMethodChange(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="text-sm font-medium text-foreground mb-2 block">
+            Buyer Name:
+          </label>
+          <Input
+            type="text"
+            placeholder="Filter by buyer name..."
+            value={localBuyerName}
+            onChange={(e) => handleBuyerNameChange(e.target.value)}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Min Value:
+            </label>
+            <Input
+              type="number"
+              placeholder="Min value"
+              value={localMinValue}
+              onChange={handleMinValueChange}
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Max Value:
+            </label>
+            <Input
+              type="number"
+              placeholder="Max value"
+              value={localMaxValue}
+              onChange={handleMaxValueChange}
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Currency:
+            </label>
+            <Input
+              type="text"
+              placeholder="Currency (e.g. ZAR)"
+              value={localCurrency}
+              onChange={(e) => handleCurrencyChange(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Sort By:
+            </label>
+            <Select
+              value={localSortBy}
+              onValueChange={handleSortByChange}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select sort field" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="releaseDate">Release Date</SelectItem>
+                <SelectItem value="valueAmount">Value Amount</SelectItem>
+                <SelectItem value="buyerName">Buyer Name</SelectItem>
+                <SelectItem value="title">Title</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Sort Order:
+            </label>
+            <Select
+              value={localSortOrder}
+              onValueChange={(value) => handleSortOrderChange(value as 'asc' | 'desc')}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select sort order" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="desc">
+                  <div className="flex items-center">
+                    <ArrowUpDown className="h-4 w-4 mr-2" />
+                    Descending
+                  </div>
+                </SelectItem>
+                <SelectItem value="asc">
+                  <div className="flex items-center">
+                    <ArrowUpDown className="h-4 w-4 mr-2 rotate-180" />
+                    Ascending
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

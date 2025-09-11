@@ -9,10 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { SearchAndFiltersHeader } from "@/components/search-and-filters-header";
 import { ReleasesLoading } from "@/components/releases-loading";
 import { useReleases } from "@/lib/queries";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/query-keys";
 
 function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
 
   // Initialize state from URL parameters
   const currentPage = parseInt(searchParams.get("page") || "1", 10);
@@ -21,6 +24,14 @@ function HomeContent() {
     searchParams.get("dateTo") || new Date().toISOString().split("T")[0];
   const pageSize = parseInt(searchParams.get("pageSize") || "50", 10);
   const searchQuery = searchParams.get("search") || "";
+  const status = searchParams.get("status") || "";
+  const procurementMethod = searchParams.get("procurementMethod") || "";
+  const buyerName = searchParams.get("buyerName") || "";
+  const minValue = searchParams.get("minValue") || "";
+  const maxValue = searchParams.get("maxValue") || "";
+  const currency = searchParams.get("currency") || "";
+  const sortBy = searchParams.get("sortBy") || "releaseDate";
+  const sortOrder = searchParams.get("sortOrder") || "desc";
   const isFilterOpen = searchParams.get("filterOpen") === "true";
 
   const { data, isLoading, error, refetch, isFetching } = useReleases({
@@ -29,6 +40,14 @@ function HomeContent() {
     dateFrom,
     dateTo,
     searchQuery,
+    status,
+    procurementMethod,
+    buyerName,
+    minValue: minValue ? parseFloat(minValue) : undefined,
+    maxValue: maxValue ? parseFloat(maxValue) : undefined,
+    currency,
+    sortBy,
+    sortOrder: sortOrder as "asc" | "desc",
   });
 
   const releases = data?.releases || [];
@@ -205,10 +224,87 @@ function HomeContent() {
     updateUrlParams({ search: newSearchQuery, page: 1 });
   };
 
+  const handleStatusChange = (newStatus: string) => {
+    updateUrlParams({ status: newStatus, page: 1 });
+  };
+
+  const handleProcurementMethodChange = (newProcurementMethod: string) => {
+    updateUrlParams({ procurementMethod: newProcurementMethod, page: 1 });
+  };
+
+  const handleBuyerNameChange = (newBuyerName: string) => {
+    updateUrlParams({ buyerName: newBuyerName, page: 1 });
+  };
+
+  const handleMinValueChange = (newMinValue: string) => {
+    updateUrlParams({ minValue: newMinValue, page: 1 });
+  };
+
+  const handleMaxValueChange = (newMaxValue: string) => {
+    updateUrlParams({ maxValue: newMaxValue, page: 1 });
+  };
+
+  const handleCurrencyChange = (newCurrency: string) => {
+    updateUrlParams({ currency: newCurrency, page: 1 });
+  };
+
+  const handleSortByChange = (newSortBy: string) => {
+    updateUrlParams({ sortBy: newSortBy, page: 1 });
+  };
+
+  const handleSortOrderChange = (newSortOrder: 'asc' | 'desc') => {
+    updateUrlParams({ sortOrder: newSortOrder, page: 1 });
+  };
+
   const handleApplyFilters = () => {
     // This will trigger a refetch with current filter values
     updateUrlParams({ page: 1 });
   };
+
+  // Prefetch detail page data when user hovers over a release link
+  const prefetchReleaseDetail = useCallback(
+    (ocid: string) => {
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.releases.detail(ocid),
+        queryFn: async () => {
+          const response = await fetch(
+            `/api/OCDSReleases/release/${encodeURIComponent(ocid)}`
+          );
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return response.json();
+        },
+        staleTime: 10 * 60 * 1000, // 10 minutes
+      });
+    },
+    [queryClient]
+  );
+
+  // Smart cache current page releases in background for better performance
+  const smartCacheCurrentPage = useCallback(async () => {
+    if (releases.length === 0) return;
+
+    const ocids = releases.map((r) => r.ocid);
+    try {
+      await fetch("/api/smart-cache/detail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ocids }),
+      });
+    } catch (error) {
+      // Silent fail - this is a background optimization
+      console.log("Smart cache failed:", error);
+    }
+  }, [releases]);
+
+  // Trigger smart cache when releases change
+  useMemo(() => {
+    if (releases.length > 0) {
+      // Delay to avoid blocking the UI
+      setTimeout(smartCacheCurrentPage, 1000);
+    }
+  }, [releases, smartCacheCurrentPage]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -225,6 +321,23 @@ function HomeContent() {
         onFilterToggle={toggleFilter}
         isFilterOpen={isFilterOpen}
         onApplyFilters={handleApplyFilters}
+        // New filter props
+        status={status}
+        onStatusChange={handleStatusChange}
+        procurementMethod={procurementMethod}
+        onProcurementMethodChange={handleProcurementMethodChange}
+        buyerName={buyerName}
+        onBuyerNameChange={handleBuyerNameChange}
+        minValue={minValue}
+        onMinValueChange={handleMinValueChange}
+        maxValue={maxValue}
+        onMaxValueChange={handleMaxValueChange}
+        currency={currency}
+        onCurrencyChange={handleCurrencyChange}
+        sortBy={sortBy}
+        onSortByChange={handleSortByChange}
+        sortOrder={sortOrder as 'asc' | 'desc'}
+        onSortOrderChange={handleSortOrderChange}
       />
 
       <div className="lg:ml-96 px-4 sm:px-6 lg:px-8 py-6">
@@ -280,6 +393,7 @@ function HomeContent() {
               key={release.ocid}
               href={`/detail?ocid=${encodeURIComponent(release.ocid)}`}
               className={`block rounded-lg border-l-4 bg-card p-5 shadow-sm hover:shadow-md transition-all ${release.statusClass}`}
+              onMouseEnter={() => prefetchReleaseDetail(release.ocid)}
             >
               <div className="flex justify-between items-start mb-3">
                 <div className="flex-1">

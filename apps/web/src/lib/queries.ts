@@ -86,6 +86,14 @@ interface ReleasesParams {
   dateFrom: string;
   dateTo: string;
   searchQuery?: string;
+  status?: string;
+  procurementMethod?: string;
+  buyerName?: string;
+  minValue?: number;
+  maxValue?: number;
+  currency?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
 }
 
 // Fetch releases with pagination and filters
@@ -101,6 +109,38 @@ const fetchReleases = async (
 
   if (params.searchQuery) {
     searchParams.append("search", params.searchQuery);
+  }
+  
+  if (params.status) {
+    searchParams.append("status", params.status);
+  }
+  
+  if (params.procurementMethod) {
+    searchParams.append("procurementMethod", params.procurementMethod);
+  }
+  
+  if (params.buyerName) {
+    searchParams.append("buyerName", params.buyerName);
+  }
+  
+  if (params.minValue !== undefined) {
+    searchParams.append("minValue", params.minValue.toString());
+  }
+  
+  if (params.maxValue !== undefined) {
+    searchParams.append("maxValue", params.maxValue.toString());
+  }
+  
+  if (params.currency) {
+    searchParams.append("currency", params.currency);
+  }
+  
+  if (params.sortBy) {
+    searchParams.append("sortBy", params.sortBy);
+  }
+  
+  if (params.sortOrder) {
+    searchParams.append("sortOrder", params.sortOrder);
   }
 
   const response = await fetch(`/api/OCDSReleases?${searchParams}`);
@@ -146,7 +186,11 @@ export const useReleaseDetail = (ocid: string | null) => {
     queryKey: queryKeys.releases.detail(ocid!),
     queryFn: () => fetchReleaseDetail(ocid!),
     enabled: Boolean(ocid),
-    staleTime: 5 * 60 * 1000, // 5 minutes - details change less frequently
-    gcTime: 10 * 60 * 1000, // 10 minutes - keep details longer in cache
+    staleTime: 10 * 60 * 1000, // 10 minutes - details change less frequently than lists
+    gcTime: 30 * 60 * 1000, // 30 minutes - keep details longer in cache since they're accessed repeatedly
+    refetchOnWindowFocus: false, // Don't refetch when window regains focus
+    refetchOnMount: false, // Don't refetch on component mount if data exists
+    retry: 3, // Retry failed requests up to 3 times
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
   });
 };

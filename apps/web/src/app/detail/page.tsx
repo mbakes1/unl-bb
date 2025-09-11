@@ -8,8 +8,9 @@ import {
   Clock,
   Building2,
   FileText,
+  RefreshCw,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback, Suspense } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -206,14 +207,21 @@ function DocumentPreview({
   );
 }
 
-export default function TenderDetail() {
+function TenderDetailContent() {
   const searchParams = useSearchParams();
   const ocid = searchParams.get("ocid");
   const [countdown, setCountdown] = useState<string>("");
 
-  const { data: release, isLoading, error } = useReleaseDetail(ocid);
+  const {
+    data: release,
+    isLoading,
+    error,
+    refetch,
+    isFetching,
+  } = useReleaseDetail(ocid);
 
-  const formatDateISO = (dateString: string | undefined) => {
+  // Memoize expensive date formatting functions for better performance
+  const formatDateISO = useCallback((dateString: string | undefined) => {
     if (!dateString) return "N/A";
     try {
       return new Date(dateString).toLocaleDateString("en-ZA", {
@@ -227,9 +235,9 @@ export default function TenderDetail() {
     } catch {
       return dateString;
     }
-  };
+  }, []);
 
-  const calculateCountdown = (endDate: string | undefined) => {
+  const calculateCountdown = useCallback((endDate: string | undefined) => {
     if (!endDate) return "No closing date";
 
     try {
@@ -257,9 +265,9 @@ export default function TenderDetail() {
     } catch {
       return endDate;
     }
-  };
+  }, []);
 
-  const getCountdownColor = (endDate: string | undefined) => {
+  const getCountdownColor = useCallback((endDate: string | undefined) => {
     if (!endDate) return "text-muted-foreground";
 
     try {
@@ -275,21 +283,57 @@ export default function TenderDetail() {
     } catch {
       return "text-muted-foreground";
     }
-  };
+  }, []);
 
-  // Update countdown every minute
+  // Memoize processed release data to avoid recalculating on every render
+  const processedRelease = useMemo(() => {
+    if (!release) return null;
+
+    const tender = release?.tender || {};
+    const tenderPeriod = tender.tenderPeriod || {
+      startDate: undefined,
+      endDate: undefined,
+    };
+    const procuringEntity = tender.procuringEntity || {
+      name: undefined,
+      id: undefined,
+    };
+    const buyer = release?.buyer || { name: undefined };
+    const value = tender.value || { amount: undefined, currency: undefined };
+    const documents = tender.documents || [];
+
+    // Consolidate categories
+    const allCategories = [
+      tender.mainProcurementCategory,
+      ...(tender.additionalProcurementCategories || []),
+    ].filter(Boolean);
+    const uniqueCategories = [...new Set(allCategories)];
+
+    return {
+      ...release,
+      tender,
+      tenderPeriod,
+      procuringEntity,
+      buyer,
+      value,
+      documents,
+      uniqueCategories,
+    };
+  }, [release]);
+
+  // Update countdown every minute with optimized effect
   useEffect(() => {
-    if (!release?.tender?.tenderPeriod?.endDate) return;
+    if (!processedRelease?.tenderPeriod?.endDate) return;
 
     const updateCountdown = () => {
-      setCountdown(calculateCountdown(release.tender.tenderPeriod?.endDate));
+      setCountdown(calculateCountdown(processedRelease.tenderPeriod.endDate));
     };
 
     updateCountdown();
     const interval = setInterval(updateCountdown, 60000); // Update every minute
 
     return () => clearInterval(interval);
-  }, [release?.tender?.tenderPeriod?.endDate]);
+  }, [processedRelease?.tenderPeriod?.endDate, calculateCountdown]);
 
   if (!ocid) {
     return (
@@ -368,46 +412,78 @@ export default function TenderDetail() {
   if (error) {
     return (
       <div className="container mx-auto max-w-6xl px-4 py-6">
+        <div className="mb-6">
+          <Button variant="link" asChild className="mb-4 px-0">
+            <Link href="/">
+              <ChevronLeft className="mr-2 h-4 w-4" />
+              Back to Listings
+            </Link>
+          </Button>
+        </div>
         <Card className="border-destructive bg-destructive/10">
           <CardContent className="p-6">
-            <p className="text-destructive">{error.message}</p>
+            <div className="flex justify-between items-center">
+              <p className="text-destructive">{error.message}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetch()}
+                disabled={isFetching}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`}
+                />
+                Try Again
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  if (!release) {
+  if (!processedRelease) {
     return (
       <div className="container mx-auto max-w-6xl px-4 py-6">
+        <div className="mb-6">
+          <Button variant="link" asChild className="mb-4 px-0">
+            <Link href="/">
+              <ChevronLeft className="mr-2 h-4 w-4" />
+              Back to Listings
+            </Link>
+          </Button>
+        </div>
         <Card>
           <CardContent className="p-6 text-center">
             <p className="text-muted-foreground">No tender details found.</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="flex items-center gap-2 mt-4"
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`}
+              />
+              Retry
+            </Button>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  const tender = release.tender;
-  const tenderPeriod = tender.tenderPeriod || {
-    startDate: undefined,
-    endDate: undefined,
-  };
-  const procuringEntity = tender.procuringEntity || {
-    name: undefined,
-    id: undefined,
-  };
-  const buyer = release.buyer || { name: undefined };
-  const value = tender.value || { amount: undefined, currency: undefined };
-  const documents = tender.documents || [];
-
-  // Consolidate categories
-  const allCategories = [
-    tender.mainProcurementCategory,
-    ...(tender.additionalProcurementCategories || []),
-  ].filter(Boolean);
-  const uniqueCategories = [...new Set(allCategories)];
+  const {
+    tender,
+    tenderPeriod,
+    procuringEntity,
+    buyer,
+    value,
+    documents,
+    uniqueCategories,
+  } = processedRelease;
 
   return (
     <div className="container mx-auto max-w-6xl px-4 py-6">
@@ -425,6 +501,28 @@ export default function TenderDetail() {
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
+
+        {isFetching && !isLoading && (
+          <div className="mb-4 rounded-lg bg-primary/10 border border-primary/20 p-3 text-primary text-sm">
+            Refreshing tender details...
+          </div>
+        )}
+
+        <div className="flex justify-between items-center mb-4">
+          <div className="text-sm text-muted-foreground">Tender ID: {ocid}</div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`}
+            />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Key Info Header */}
@@ -437,7 +535,7 @@ export default function TenderDetail() {
               </h1>
               <div className="flex flex-wrap gap-3 text-sm text-muted-foreground mb-4">
                 <span className="font-medium">
-                  Tender Number: {tender.id || release.ocid}
+                  Tender Number: {tender.id || processedRelease.ocid}
                 </span>
               </div>
               <div className="flex items-center gap-4 mb-4">
@@ -461,7 +559,7 @@ export default function TenderDetail() {
                     tenderPeriod.endDate
                   )}`}
                 >
-                  {countdown || calculateCountdown(tenderPeriod.endDate)}
+                  {countdown}
                 </div>
                 <div className="text-sm text-muted-foreground">
                   {formatDateISO(tenderPeriod.endDate)}
@@ -565,22 +663,22 @@ export default function TenderDetail() {
                     <span className="font-medium text-muted-foreground">
                       Release Date:
                     </span>
-                    <p>{formatDateISO(release.date)}</p>
+                    <p>{release?.date ? formatDateISO(release.date) : "N/A"}</p>
                   </div>
-                  {release.language && (
+                  {release?.language && (
                     <div>
                       <span className="font-medium text-muted-foreground">
                         Language:
                       </span>
-                      <p>{release.language}</p>
+                      <p>{release?.language || "N/A"}</p>
                     </div>
                   )}
-                  {release.tag && release.tag.length > 0 && (
+                  {release?.tag && release.tag.length > 0 && (
                     <div className="md:col-span-2">
                       <span className="font-medium text-muted-foreground">
                         Tags:
                       </span>
-                      <p>{release.tag.join(", ")}</p>
+                      <p>{release?.tag?.join(", ") || "N/A"}</p>
                     </div>
                   )}
                 </div>
@@ -675,5 +773,56 @@ export default function TenderDetail() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function TenderDetail() {
+  return (
+    <Suspense
+      fallback={
+        <div className="container mx-auto max-w-6xl px-4 py-6">
+          <div className="mb-6">
+            <Button variant="link" asChild className="mb-4 px-0">
+              <Link href="/">
+                <ChevronLeft className="mr-2 h-4 w-4" />
+                Back to Listings
+              </Link>
+            </Button>
+            <Skeleton className="h-10 w-64 mb-6" />
+          </div>
+
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-8 w-3/4" />
+              <div className="flex gap-2 mt-4">
+                <Skeleton className="h-6 w-24" />
+                <Skeleton className="h-6 w-20" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                <div>
+                  <Skeleton className="h-6 w-32 mb-2" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-4/5 mt-2" />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i}>
+                      <Skeleton className="h-6 w-40 mb-2" />
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-3/4 mt-1" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      }
+    >
+      <TenderDetailContent />
+    </Suspense>
   );
 }

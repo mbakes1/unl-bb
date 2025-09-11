@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { performanceMonitor, dbCacheMetrics } from "@/lib/performance-monitor";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -18,11 +19,19 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get("PageNumber") || "1");
     const pageSize = Math.min(
       parseInt(searchParams.get("PageSize") || "50"),
-      100
+      20000
     );
     const dateFrom = searchParams.get("dateFrom");
     const dateTo = searchParams.get("dateTo");
     const searchQuery = searchParams.get("search");
+    const status = searchParams.get("status");
+    const procurementMethod = searchParams.get("procurementMethod");
+    const buyerName = searchParams.get("buyerName");
+    const minValue = searchParams.get("minValue");
+    const maxValue = searchParams.get("maxValue");
+    const currency = searchParams.get("currency");
+    const sortBy = searchParams.get("sortBy") || "releaseDate";
+    const sortOrder = searchParams.get("sortOrder") || "desc";
 
     // Build where clause for filtering
     const where: any = {};
@@ -37,11 +46,85 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Text search with comprehensive search across multiple fields
     if (searchQuery) {
-      where.OR = [
-        { title: { contains: searchQuery, mode: "insensitive" } },
-        { buyerName: { contains: searchQuery, mode: "insensitive" } },
-      ];
+      // Split search query into words and filter out empty strings
+      const searchWords = searchQuery.split(" ").filter(word => word.length > 0);
+      
+      if (searchWords.length > 0) {
+        // Create OR conditions for each search word across multiple fields
+        const searchConditions = searchWords.map(word => ({
+          OR: [
+            {
+              title: {
+                contains: word,
+                mode: "insensitive"
+              }
+            },
+            {
+              buyerName: {
+                contains: word,
+                mode: "insensitive"
+              }
+            },
+            {
+              status: {
+                contains: word,
+                mode: "insensitive"
+              }
+            },
+            {
+              procurementMethod: {
+                contains: word,
+                mode: "insensitive"
+              }
+            }
+          ]
+        }));
+        
+        // Combine all search conditions with AND (all words must match)
+        where.AND = searchConditions;
+      }
+    }
+
+    // Status filter
+    if (status) {
+      where.status = {
+        contains: status,
+        mode: "insensitive"
+      };
+    }
+
+    // Procurement method filter
+    if (procurementMethod) {
+      where.procurementMethod = {
+        contains: procurementMethod,
+        mode: "insensitive"
+      };
+    }
+
+    // Buyer name filter
+    if (buyerName) {
+      where.buyerName = {
+        contains: buyerName,
+        mode: "insensitive"
+      };
+    }
+
+    // Value range filter
+    if (minValue || maxValue) {
+      where.valueAmount = {};
+      if (minValue) {
+        where.valueAmount.gte = parseFloat(minValue);
+      }
+      if (maxValue) {
+        where.valueAmount.lte = parseFloat(maxValue);
+      }
+    }
+
+    // Currency filter
+    if (currency) {
+      where.currency = currency;
     }
 
     // Check data freshness and trigger background update if needed
@@ -62,14 +145,44 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Build orderBy clause
+    let orderBy: any = { releaseDate: "desc" };
+    if (sortBy) {
+      switch (sortBy) {
+        case "releaseDate":
+          orderBy = { releaseDate: sortOrder };
+          break;
+        case "valueAmount":
+          orderBy = { valueAmount: sortOrder };
+          break;
+        case "buyerName":
+          orderBy = { buyerName: sortOrder };
+          break;
+        case "title":
+          orderBy = { title: sortOrder };
+          break;
+        default:
+          orderBy = { releaseDate: "desc" };
+      }
+    }
+
+    const dbTracker = performanceMonitor.trackDatabaseQuery("findReleases", {
+      page,
+      pageSize,
+    });
+    dbTracker.start();
+
     const totalCount = await prisma.release.count({ where });
     const releases = await prisma.release.findMany({
       where,
       skip: (page - 1) * pageSize,
       take: pageSize,
-      orderBy: { releaseDate: "desc" },
+      orderBy,
       select: { data: true },
     });
+
+    dbTracker.end();
+    dbCacheMetrics.hit(); // We're serving from database
 
     const releaseData = releases.map((r: { data: any }) => r.data);
     const totalPages = Math.ceil(totalCount / pageSize);
@@ -132,6 +245,10 @@ async function populateInitialData() {
         const buyerName =
           release.buyer?.name || release.tender?.procuringEntity?.name || "";
         const status = release.tender?.status || "";
+        const procurementMethod = release.tender?.procurementMethod || "";
+        const mainProcurementCategory = release.tender?.mainProcurementCategory || "";
+        const valueAmount = release.tender?.value?.amount || null;
+        const currency = release.tender?.value?.currency || null;
         const releaseDate = release.date ? new Date(release.date) : new Date();
 
         await prisma.release.create({
@@ -142,6 +259,10 @@ async function populateInitialData() {
             title,
             buyerName,
             status,
+            procurementMethod,
+            mainProcurementCategory,
+            valueAmount,
+            currency,
           },
         });
       } catch (error) {
@@ -181,6 +302,10 @@ async function refreshDataInBackground() {
         const buyerName =
           release.buyer?.name || release.tender?.procuringEntity?.name || "";
         const status = release.tender?.status || "";
+        const procurementMethod = release.tender?.procurementMethod || "";
+        const mainProcurementCategory = release.tender?.mainProcurementCategory || "";
+        const valueAmount = release.tender?.value?.amount || null;
+        const currency = release.tender?.value?.currency || null;
         const releaseDate = release.date ? new Date(release.date) : new Date();
 
         await prisma.release.upsert({
@@ -191,6 +316,10 @@ async function refreshDataInBackground() {
             title,
             buyerName,
             status,
+            procurementMethod,
+            mainProcurementCategory,
+            valueAmount,
+            currency,
           },
           create: {
             ocid: release.ocid,
@@ -199,6 +328,10 @@ async function refreshDataInBackground() {
             title,
             buyerName,
             status,
+            procurementMethod,
+            mainProcurementCategory,
+            valueAmount,
+            currency,
           },
         });
       } catch (error) {

@@ -14,18 +14,25 @@ datasource db {
 }
 
 model Release {
-  id          Int      @id @default(autoincrement())
-  ocid        String   @unique // Open Contracting ID, for easy lookups
-  releaseDate DateTime
-  data        Json     // The full JSON blob of the release
-  title       String?  // For full-text search
-  buyerName   String?  // For filtering by buyer
-  status      String?  // Tender status for filtering
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                    Int      @id @default(autoincrement())
+  ocid                  String   @unique // Open Contracting ID, for easy lookups
+  releaseDate           DateTime
+  data                  Json     // The full JSON blob of the release
+  title                 String?  // For full-text search
+  buyerName             String?  // For filtering by buyer
+  status                String?  // Tender status for filtering
+  procurementMethod     String?  // Procurement method for filtering
+  mainProcurementCategory String? // Main procurement category for filtering
+  valueAmount           Float?   // Value amount for filtering by value range
+  currency              String?  // Currency for value filtering
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   @@index([releaseDate])
   @@index([buyerName])
   @@index([status])
+  @@index([procurementMethod])
+  @@index([mainProcurementCategory])
+  @@index([valueAmount])
   @@index([createdAt])
 }
