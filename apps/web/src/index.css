@@ -3,6 +3,7 @@
 @import url("https://fonts.googleapis.com/css2?family=Amethysta:wght@400&display=swap");
 
 :root {
+  font-size: 15px;
   --background: oklch(0.994 0 0);
   --foreground: oklch(0 0 0);
   --card: oklch(0.994 0 0);
@@ -38,7 +39,7 @@
   --font-sans: DM Sans, ui-sans-serif, sans-serif, system-ui;
   --font-serif: Amethysta, ui-serif, serif;
   --font-mono: Geist Mono, ui-monospace, monospace;
-  --radius: 1.4rem;
+  --radius: 0.8rem;
   --shadow-2xs: 0px 2px 3px 0px hsl(0 0% 0% / 0.08);
   --shadow-xs: 0px 2px 3px 0px hsl(0 0% 0% / 0.08);
   --shadow-sm: 0px 2px 3px 0px hsl(0 0% 0% / 0.16),
@@ -92,7 +93,7 @@
   --font-sans: DM Sans, ui-sans-serif, sans-serif, system-ui;
   --font-serif: Amethysta, ui-serif, serif;
   --font-mono: Geist Mono, ui-monospace, monospace;
-  --radius: 1.4rem;
+  --radius: 0.8rem;
   --shadow-2xs: 0px 2px 3px 0px hsl(0 0% 0% / 0.08);
   --shadow-xs: 0px 2px 3px 0px hsl(0 0% 0% / 0.08);
   --shadow-sm: 0px 2px 3px 0px hsl(0 0% 0% / 0.16),

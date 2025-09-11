@@ -350,14 +350,14 @@ function TenderDetailContent() {
   if (isLoading) {
     return (
       <div className="container mx-auto max-w-6xl px-4 py-6">
-        <div className="mb-6">
+        <div className="mb-4">
           <Button variant="link" asChild className="mb-4 px-0">
             <Link href="/">
               <ChevronLeft className="mr-2 h-4 w-4" />
               Back to Listings
             </Link>
           </Button>
-          <Skeleton className="h-10 w-64 mb-6" />
+          <Skeleton className="h-10 w-64 mb-4" />
         </div>
 
         <Card>
@@ -376,7 +376,7 @@ function TenderDetailContent() {
                 <Skeleton className="h-4 w-4/5 mt-2" />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[...Array(4)].map((_, i) => (
                   <div key={i}>
                     <Skeleton className="h-6 w-40 mb-2" />
@@ -487,7 +487,7 @@ function TenderDetailContent() {
 
   return (
     <div className="container mx-auto max-w-6xl px-4 py-6">
-      <div className="mb-6">
+      <div className="mb-4">
         <Breadcrumb className="mb-4">
           <BreadcrumbList>
             <BreadcrumbItem>
@@ -526,11 +526,11 @@ function TenderDetailContent() {
       </div>
 
       {/* Key Info Header */}
-      <Card className="mb-6 border-l-4 border-l-primary">
+      <Card className="mb-4 border-l-4 border-l-primary">
         <CardContent className="p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-center">
             <div className="lg:col-span-2">
-              <h1 className="text-2xl font-bold mb-2">
+              <h1 className="text-xl font-bold mb-2">
                 {tender.title || "Untitled Tender"}
               </h1>
               <div className="flex flex-wrap gap-3 text-sm text-muted-foreground mb-4">
@@ -555,7 +555,7 @@ function TenderDetailContent() {
                   <span className="text-sm font-medium">Closing Date</span>
                 </div>
                 <div
-                  className={`text-2xl font-bold ${getCountdownColor(
+                  className={`text-xl font-bold ${getCountdownColor(
                     tenderPeriod.endDate
                   )}`}
                 >
@@ -577,7 +577,7 @@ function TenderDetailContent() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
           {/* Description */}
@@ -781,14 +781,14 @@ export default function TenderDetail() {
     <Suspense
       fallback={
         <div className="container mx-auto max-w-6xl px-4 py-6">
-          <div className="mb-6">
+          <div className="mb-4">
             <Button variant="link" asChild className="mb-4 px-0">
               <Link href="/">
                 <ChevronLeft className="mr-2 h-4 w-4" />
                 Back to Listings
               </Link>
             </Button>
-            <Skeleton className="h-10 w-64 mb-6" />
+            <Skeleton className="h-10 w-64 mb-4" />
           </div>
 
           <Card>
@@ -807,7 +807,7 @@ export default function TenderDetail() {
                   <Skeleton className="h-4 w-4/5 mt-2" />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {[...Array(4)].map((_, i) => (
                     <div key={i}>
                       <Skeleton className="h-6 w-40 mb-2" />

@@ -344,7 +344,7 @@ function HomeContent() {
         {isLoading && <ReleasesLoading />}
 
         {error && (
-          <div className="mb-6 rounded-lg bg-destructive/10 border border-destructive/20 p-4">
+          <div className="mb-4 rounded-lg bg-destructive/10 border border-destructive/20 p-4">
             <div className="flex justify-between items-center">
               <p className="text-destructive">{error.message}</p>
               <Button
@@ -387,12 +387,12 @@ function HomeContent() {
           </div>
         </div>
 
-        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
+        <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
           {processedReleases.map((release) => (
             <Link
               key={release.ocid}
               href={`/detail?ocid=${encodeURIComponent(release.ocid)}`}
-              className={`block rounded-lg border-l-4 bg-card p-5 shadow-sm hover:shadow-md transition-all ${release.statusClass}`}
+              className={`block rounded-lg border-l-4 bg-card p-4 shadow-sm hover:shadow-md transition-all ${release.statusClass}`}
               onMouseEnter={() => prefetchReleaseDetail(release.ocid)}
             >
               <div className="flex justify-between items-start mb-3">
@@ -437,7 +437,7 @@ function HomeContent() {
           ))}
 
           {releases.length === 0 && !isLoading && !error && (
-            <div className="col-span-full rounded-lg bg-card p-8 text-center shadow-sm">
+            <div className="col-span-full rounded-lg bg-card p-6 text-center shadow-sm">
               <p className="text-muted-foreground">
                 No releases found for the selected criteria.
               </p>
