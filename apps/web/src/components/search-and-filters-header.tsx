@@ -90,7 +90,7 @@ export const SearchAndFiltersHeader = ({
   }, [pageSize]);
 
   React.useEffect(() => {
-    setLocalIndustryFilter(industryFilter);
+    setLocalIndustryFilter(industryFilter || "");
   }, [industryFilter]);
 
   const handleDateFromChange = (date: Date | undefined) => {
@@ -110,8 +110,10 @@ export const SearchAndFiltersHeader = ({
   };
 
   const handleIndustryFilterChange = (value: string) => {
-    setLocalIndustryFilter(value);
-    onIndustryFilterChange(value);
+    // Convert "__all__" back to empty string for the API
+    const apiValue = value === "__all__" ? "" : value;
+    setLocalIndustryFilter(apiValue);
+    onIndustryFilterChange(apiValue);
   };
 
   const resetFilters = () => {
@@ -197,12 +199,12 @@ export const SearchAndFiltersHeader = ({
           <label className="text-sm font-medium text-foreground mb-2 block">
             Industry:
           </label>
-          <Select value={localIndustryFilter} onValueChange={handleIndustryFilterChange}>
+          <Select value={localIndustryFilter || "__all__"} onValueChange={handleIndustryFilterChange}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Select industry" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Industries</SelectItem>
+              <SelectItem value="__all__">All Industries</SelectItem>
               {INDUSTRIES.map((industry) => (
                 <SelectItem key={industry} value={industry}>
                   {industry}

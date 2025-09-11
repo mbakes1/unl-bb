@@ -105,7 +105,9 @@ const fetchReleases = async (
   }
 
   if (params.industryFilter) {
-    searchParams.append("mainProcurementCategory", params.industryFilter);
+    // Convert "__all__" back to empty string for the API
+    const apiValue = params.industryFilter === "__all__" ? "" : params.industryFilter;
+    searchParams.append("mainProcurementCategory", apiValue);
   }
 
   // Add performance tracking

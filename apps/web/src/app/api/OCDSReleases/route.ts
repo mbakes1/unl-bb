@@ -128,8 +128,8 @@ export async function GET(request: NextRequest) {
       where.currency = currency;
     }
 
-    // Industry filter
-    if (mainProcurementCategory) {
+    // Industry filter - handle "__all__" value as no filter
+    if (mainProcurementCategory && mainProcurementCategory !== "__all__") {
       where.mainProcurementCategory = mainProcurementCategory;
     }
 
