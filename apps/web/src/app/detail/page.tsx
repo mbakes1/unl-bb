@@ -30,6 +30,90 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { useReleaseDetail } from "@/lib/queries";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+
+// Document Preview Component
+function DocumentPreview({
+  document,
+}: {
+  document: {
+    id?: string;
+    title?: string;
+    description?: string;
+    url?: string;
+    format?: string;
+  };
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (!document.url) {
+    return null;
+  }
+
+  const format = document.format?.toLowerCase();
+  const isPreviewable =
+    format &&
+    ["pdf", "png", "jpg", "jpeg", "gif", "svg", "webp"].includes(format);
+
+  if (!isPreviewable) {
+    return null;
+  }
+
+  const renderPreview = () => {
+    if (format === "pdf") {
+      return (
+        <iframe
+          src={document.url}
+          className="w-full h-full border-0"
+          title={document.title || "Document Preview"}
+        />
+      );
+    }
+
+    if (["png", "jpg", "jpeg", "gif", "svg", "webp"].includes(format || "")) {
+      return (
+        <div className="flex items-center justify-center h-full p-4">
+          <img
+            src={document.url}
+            alt={document.title || "Document Preview"}
+            className="max-w-full max-h-full object-contain"
+          />
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="w-full">
+          <FileText className="mr-2 h-3 w-3" />
+          Preview
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-4xl w-[90vw] h-[80vh] p-0">
+        <DialogHeader className="p-6 pb-0">
+          <DialogTitle className="text-left">
+            {document.title || "Document Preview"}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="flex-1 p-6 pt-4 overflow-hidden">
+          <div className="w-full h-full bg-muted/30 rounded-lg overflow-auto">
+            {renderPreview()}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function TenderDetail() {
   const searchParams = useSearchParams();
@@ -472,21 +556,24 @@ export default function TenderDetail() {
                         </div>
                       </div>
                       {doc.url && (
-                        <Button
-                          asChild
-                          size="sm"
-                          variant="outline"
-                          className="w-full"
-                        >
-                          <a
-                            href={doc.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                        <div className="space-y-2">
+                          <DocumentPreview document={doc} />
+                          <Button
+                            asChild
+                            size="sm"
+                            variant="outline"
+                            className="w-full"
                           >
-                            <Download className="mr-2 h-3 w-3" />
-                            Download
-                          </a>
-                        </Button>
+                            <a
+                              href={doc.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <Download className="mr-2 h-3 w-3" />
+                              Download
+                            </a>
+                          </Button>
+                        </div>
                       )}
                     </div>
                   ))}
