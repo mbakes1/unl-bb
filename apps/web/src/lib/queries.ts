@@ -86,6 +86,7 @@ interface ReleasesParams {
   dateFrom: string;
   dateTo: string;
   searchQuery?: string;
+  industryFilter?: string;
 }
 
 // Fetch releases with pagination and filters
@@ -101,6 +102,10 @@ const fetchReleases = async (
 
   if (params.searchQuery) {
     searchParams.append("search", params.searchQuery);
+  }
+
+  if (params.industryFilter) {
+    searchParams.append("mainProcurementCategory", params.industryFilter);
   }
 
   const response = await fetch(`/api/OCDSReleases?${searchParams}`);

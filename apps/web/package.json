@@ -9,7 +9,8 @@
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:ingest": "tsx scripts/initial-ingest.ts",
-    "db:bulk-ingest": "tsx scripts/bulk-ingest.ts"
+    "db:bulk-ingest": "tsx scripts/bulk-ingest.ts",
+    "db:backfill": "tsx scripts/backfill-industries.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.16.0",

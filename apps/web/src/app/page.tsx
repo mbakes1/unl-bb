@@ -24,6 +24,7 @@ function HomeContent() {
     searchParams.get("dateTo") || new Date().toISOString().split("T")[0];
   const pageSize = parseInt(searchParams.get("pageSize") || "50", 10);
   const searchQuery = searchParams.get("search") || "";
+  const industryFilter = searchParams.get("industry") || "";
 
   const { data, isLoading, error, refetch, isFetching } = useReleases({
     pageNumber: currentPage,
@@ -31,6 +32,7 @@ function HomeContent() {
     dateFrom,
     dateTo,
     searchQuery,
+    industryFilter,
   });
 
   const releases = data?.releases || [];
@@ -205,6 +207,10 @@ function HomeContent() {
     updateUrlParams({ search: newSearchQuery, page: 1 });
   };
 
+  const handleIndustryFilterChange = (newIndustryFilter: string) => {
+    updateUrlParams({ industry: newIndustryFilter, page: 1 });
+  };
+
   
 
   const handleApplyFilters = () => {
@@ -269,6 +275,8 @@ function HomeContent() {
         onDateToChange={handleDateToChange}
         pageSize={pageSize}
         onPageSizeChange={handlePageSizeChange}
+        industryFilter={industryFilter}
+        onIndustryFilterChange={handleIndustryFilterChange}
         onApplyFilters={handleApplyFilters}
       />
 

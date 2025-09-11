@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
     const dateFrom = searchParams.get("dateFrom");
     const dateTo = searchParams.get("dateTo");
     const searchQuery = searchParams.get("search");
+    const mainProcurementCategory = searchParams.get("mainProcurementCategory");
     const status = searchParams.get("status");
     const procurementMethod = searchParams.get("procurementMethod");
     const buyerName = searchParams.get("buyerName");
@@ -125,6 +126,11 @@ export async function GET(request: NextRequest) {
     // Currency filter
     if (currency) {
       where.currency = currency;
+    }
+
+    // Industry filter
+    if (mainProcurementCategory) {
+      where.mainProcurementCategory = mainProcurementCategory;
     }
 
     // Check data freshness and trigger background update if needed

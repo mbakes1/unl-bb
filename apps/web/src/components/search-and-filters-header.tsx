@@ -11,8 +11,16 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import React from "react";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
+import { INDUSTRIES, PROVINCES } from "@/lib/filter-options";
 
 interface SearchAndFiltersHeaderProps {
   searchQuery: string;
@@ -24,6 +32,8 @@ interface SearchAndFiltersHeaderProps {
   onDateToChange: (value: string) => void;
   pageSize: number;
   onPageSizeChange: (value: number) => void;
+  industryFilter: string;
+  onIndustryFilterChange: (value: string) => void;
   onApplyFilters: () => void;
 }
 
@@ -37,6 +47,8 @@ export const SearchAndFiltersHeader = ({
   onDateToChange,
   pageSize,
   onPageSizeChange,
+  industryFilter,
+  onIndustryFilterChange,
   onApplyFilters,
 }: SearchAndFiltersHeaderProps) => {
   // Local state for form inputs
@@ -48,6 +60,7 @@ export const SearchAndFiltersHeader = ({
     dateTo ? new Date(dateTo) : undefined
   );
   const [localPageSize, setLocalPageSize] = React.useState(pageSize);
+  const [localIndustryFilter, setLocalIndustryFilter] = React.useState(industryFilter);
 
   // Increase debounce delay to allow typing full words
   const debouncedSearchQuery = useDebouncedValue(localSearchQuery, 1000);
@@ -76,6 +89,10 @@ export const SearchAndFiltersHeader = ({
     setLocalPageSize(pageSize);
   }, [pageSize]);
 
+  React.useEffect(() => {
+    setLocalIndustryFilter(industryFilter);
+  }, [industryFilter]);
+
   const handleDateFromChange = (date: Date | undefined) => {
     setDateFromObj(date);
     onDateFromChange(date ? date.toISOString().split("T")[0] : "");
@@ -92,6 +109,11 @@ export const SearchAndFiltersHeader = ({
     onPageSizeChange(newSize);
   };
 
+  const handleIndustryFilterChange = (value: string) => {
+    setLocalIndustryFilter(value);
+    onIndustryFilterChange(value);
+  };
+
   const resetFilters = () => {
     const today = new Date();
     const startOfYear = new Date(2024, 0, 1);
@@ -102,6 +124,7 @@ export const SearchAndFiltersHeader = ({
     onDateToChange(today.toISOString().split("T")[0]);
     onSearchChange("");
     onPageSizeChange(50);
+    onIndustryFilterChange("");
   };
 
   const FiltersContent = () => (
@@ -167,6 +190,26 @@ export const SearchAndFiltersHeader = ({
               className="w-full"
             />
           </div>
+        </div>
+
+        {/* Industry Filter */}
+        <div>
+          <label className="text-sm font-medium text-foreground mb-2 block">
+            Industry:
+          </label>
+          <Select value={localIndustryFilter} onValueChange={handleIndustryFilterChange}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select industry" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All Industries</SelectItem>
+              {INDUSTRIES.map((industry) => (
+                <SelectItem key={industry} value={industry}>
+                  {industry}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div>
