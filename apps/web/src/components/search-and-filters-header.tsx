@@ -62,8 +62,8 @@ export const SearchAndFiltersHeader = ({
   const [localPageSize, setLocalPageSize] = React.useState(pageSize);
   const [localIndustryFilter, setLocalIndustryFilter] = React.useState(industryFilter);
 
-  // Increase debounce delay to allow typing full words
-  const debouncedSearchQuery = useDebouncedValue(localSearchQuery, 1000);
+  // Use shorter debounce for better UX, with leading edge for immediate feedback and maxWait for guaranteed updates
+  const debouncedSearchQuery = useDebouncedValue(localSearchQuery, 300, { leading: true, maxWait: 1000 });
 
   // Update parent when debounced value changes
   React.useEffect(() => {

@@ -35,7 +35,7 @@ function HomeContent() {
     industryFilter,
   });
 
-  const releases = data?.releases || [];
+  const releases = (data as any)?.releases || [];
   const hasNextPage = Boolean(data?.links?.next);
 
   // Memoize expensive date calculations
@@ -126,7 +126,7 @@ function HomeContent() {
 
   // Memoize processed releases to avoid recalculating on every render
   const processedReleases = useMemo(() => {
-    return releases.map((release) => {
+    return releases.map((release: any) => {
       const tender = release.tender || {
         id: "",
         title: "",
@@ -242,7 +242,7 @@ function HomeContent() {
   const smartCacheCurrentPage = useCallback(async () => {
     if (releases.length === 0) return;
 
-    const ocids = releases.map((r) => r.ocid);
+    const ocids = releases.map((r: any) => r.ocid);
     try {
       await fetch("/api/smart-cache/detail", {
         method: "POST",
@@ -328,7 +328,7 @@ function HomeContent() {
         </div>
 
         <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
-          {processedReleases.map((release) => (
+          {processedReleases.map((release: any) => (
             <Link
               key={release.ocid}
               href={`/detail?ocid=${encodeURIComponent(release.ocid)}`}

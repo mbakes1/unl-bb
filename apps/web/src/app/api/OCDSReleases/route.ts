@@ -178,14 +178,17 @@ export async function GET(request: NextRequest) {
     });
     dbTracker.start();
 
-    const totalCount = await prisma.release.count({ where });
-    const releases = await prisma.release.findMany({
-      where,
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      orderBy,
-      select: { data: true },
-    });
+    // Use Promise.all to run count and findMany in parallel for better performance
+    const [totalCount, releases] = await Promise.all([
+      prisma.release.count({ where }),
+      prisma.release.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy,
+        select: { data: true },
+      })
+    ]);
 
     dbTracker.end();
     dbCacheMetrics.hit(); // We're serving from database

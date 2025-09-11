@@ -33,15 +33,22 @@ async function backfillIndustries() {
         const industry = extractIndustry(release.title || "");
         
         if (industry) {
+          // Ensure release.data is an object before spreading
+          const releaseData = typeof release.data === 'object' && release.data !== null 
+            ? release.data 
+            : {};
+          
           // Update the release with the new industry category
           await prisma.release.update({
             where: { ocid: release.ocid },
             data: {
               mainProcurementCategory: industry,
               data: {
-                ...release.data,
+                ...releaseData,
                 tender: {
-                  ...(release.data as any).tender,
+                  ...(typeof releaseData === 'object' && releaseData !== null && 'tender' in releaseData 
+                    ? (releaseData as any).tender 
+                    : {}),
                   mainProcurementCategory: industry
                 }
               }

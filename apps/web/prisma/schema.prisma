@@ -35,4 +35,8 @@ model Release {
   @@index([mainProcurementCategory])
   @@index([valueAmount])
   @@index([createdAt])
+  // Composite indexes for common filter combinations
+  @@index([releaseDate, mainProcurementCategory])
+  @@index([releaseDate, buyerName])
+  @@index([mainProcurementCategory, releaseDate])
 }

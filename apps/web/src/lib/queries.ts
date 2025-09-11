@@ -108,7 +108,18 @@ const fetchReleases = async (
     searchParams.append("mainProcurementCategory", params.industryFilter);
   }
 
+  // Add performance tracking
+  const startTime = performance.now();
+  
   const response = await fetch(`/api/OCDSReleases?${searchParams}`);
+
+  const endTime = performance.now();
+  const duration = endTime - startTime;
+  
+  // Log slow queries (over 1 second)
+  if (duration > 1000) {
+    console.warn(`Slow API request: ${duration}ms for params`, params);
+  }
 
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
@@ -132,14 +143,14 @@ const fetchReleaseDetail = async (ocid: string): Promise<DetailedRelease> => {
 
 // Hook for fetching releases list
 export const useReleases = (params: ReleasesParams) => {
-  return useQuery({
+  return useQuery<ReleasesResponse, Error>({
     queryKey: queryKeys.releases.list(params),
     queryFn: () => fetchReleases(params),
     enabled: Boolean(
       params.pageNumber && params.pageSize && params.dateFrom && params.dateTo
     ),
     staleTime: 5 * 60 * 1000, // 5 minutes - data is fresh for 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes - keep in cache for 10 minutes
+    gcTime: 15 * 60 * 1000, // 15 minutes - keep in cache longer for better UX
     refetchOnWindowFocus: false, // Don't refetch when window regains focus
     refetchOnMount: false, // Don't refetch on component mount if data exists
   });
