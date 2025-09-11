@@ -3,8 +3,9 @@
 import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { SearchAndFiltersHeader } from "@/components/search-and-filters-header";
 import { ReleasesLoading } from "@/components/releases-loading";
 import { useReleases } from "@/lib/queries";
@@ -63,6 +64,74 @@ function HomeContent() {
       });
     } catch {
       return dateString;
+    }
+  };
+
+  const isNewTender = (releaseDate: string | undefined) => {
+    if (!releaseDate) return false;
+    const release = new Date(releaseDate);
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    return release > twoDaysAgo;
+  };
+
+  const formatClosingDate = (endDate: string | undefined) => {
+    if (!endDate) return { text: "No closing date", urgent: false };
+
+    try {
+      const closing = new Date(endDate);
+      const now = new Date();
+
+      // Reset time to start of day for accurate day comparison
+      const closingDay = new Date(
+        closing.getFullYear(),
+        closing.getMonth(),
+        closing.getDate()
+      );
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      const diffTime = closingDay.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays < 0) {
+        const daysPast = Math.abs(diffDays);
+        if (daysPast === 1) {
+          return { text: "Closed yesterday", urgent: false };
+        } else if (daysPast <= 7) {
+          return { text: `Closed ${daysPast} days ago`, urgent: false };
+        } else {
+          return { text: "Closed", urgent: false };
+        }
+      } else if (diffDays === 0) {
+        return { text: "Closes today", urgent: true };
+      } else if (diffDays === 1) {
+        return { text: "Closes tomorrow", urgent: true };
+      } else if (diffDays <= 3) {
+        return { text: `Closes in ${diffDays} days`, urgent: true };
+      } else if (diffDays <= 7) {
+        return { text: `Closes in ${diffDays} days`, urgent: true };
+      } else if (diffDays <= 30) {
+        return {
+          text: `Closes in ${diffDays} days (${closing.toLocaleDateString(
+            "en-ZA",
+            {
+              day: "numeric",
+              month: "short",
+            }
+          )})`,
+          urgent: false,
+        };
+      } else {
+        return {
+          text: `Closing: ${closing.toLocaleDateString("en-ZA", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })}`,
+          urgent: false,
+        };
+      }
+    } catch {
+      return { text: endDate, urgent: false };
     }
   };
 
@@ -205,6 +274,9 @@ function HomeContent() {
             };
             const buyer = release.buyer || { name: undefined };
 
+            const closingInfo = formatClosingDate(tenderPeriod.endDate);
+            const showNewBadge = isNewTender(release.date);
+
             return (
               <Link
                 key={release.ocid}
@@ -213,13 +285,25 @@ function HomeContent() {
                   tender.status
                 )}`}
               >
-                {tender.description && (
-                  <div className="mb-3 border-b border-border pb-3 text-muted-foreground">
-                    {tender.description}
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex-1">
+                    {tender.description && (
+                      <div className="border-b border-border pb-3 text-muted-foreground">
+                        {tender.description}
+                      </div>
+                    )}
                   </div>
-                )}
+                  {showNewBadge && (
+                    <Badge
+                      variant="default"
+                      className="ml-2 bg-green-500 text-white hover:bg-green-600 flex-shrink-0 animate-pulse"
+                    >
+                      NEW
+                    </Badge>
+                  )}
+                </div>
 
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <div className="text-foreground font-medium">
                     {procuringEntity.name || buyer.name || "N/A"}
                   </div>
@@ -228,10 +312,15 @@ function HomeContent() {
                       tender.procurementMethod ||
                       "N/A"}
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    {formatDateISO(tenderPeriod.startDate)}
-                    <br />
-                    {formatDateISO(tenderPeriod.endDate)}
+                  <div
+                    className={`flex items-center gap-2 text-sm font-medium rounded-md px-2 py-1 ${
+                      closingInfo.urgent
+                        ? "text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    <Clock className="h-4 w-4" />
+                    {closingInfo.text}
                   </div>
                 </div>
               </Link>
