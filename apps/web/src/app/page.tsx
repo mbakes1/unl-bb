@@ -313,9 +313,9 @@ function HomeContent() {
                       "N/A"}
                   </div>
                   <div
-                    className={`flex items-center gap-2 text-sm font-medium rounded-md px-2 py-1 ${
+                    className={`flex items-center gap-2 text-sm font-medium ${
                       closingInfo.urgent
-                        ? "text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800"
+                        ? "text-orange-600 dark:text-orange-400"
                         : "text-muted-foreground"
                     }`}
                   >
