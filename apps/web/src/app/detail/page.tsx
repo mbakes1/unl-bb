@@ -52,117 +52,253 @@ function DocumentPreview({
   };
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
 
   if (!document.url) {
     return null;
   }
 
-  // Detect format from URL or provided format
+  // Detect format from URL or provided format with enhanced detection
   const getDocumentFormat = () => {
     const format = document.format?.toLowerCase();
     if (format) return format;
 
     // Try to detect from URL extension
     if (document.url) {
-      const urlParts = document.url.split(".");
-      const extension = urlParts[urlParts.length - 1]
-        ?.toLowerCase()
-        .split("?")[0];
-      return extension;
+      try {
+        const urlObj = new URL(document.url);
+        const pathname = urlObj.pathname;
+        const urlParts = pathname.split(".");
+        const extension = urlParts[urlParts.length - 1]
+          ?.toLowerCase()
+          .split("?")[0]
+          .split("#")[0];
+        return extension;
+      } catch (e) {
+        // Fallback to simple split if URL parsing fails
+        const urlParts = document.url.split(".");
+        const extension = urlParts[urlParts.length - 1]
+          ?.toLowerCase()
+          .split("?")[0]
+          .split("#")[0];
+        return extension;
+      }
     }
     return undefined;
   };
 
   const format = getDocumentFormat();
-  const isPreviewable =
-    format &&
-    [
-      "pdf",
-      "png",
-      "jpg",
-      "jpeg",
-      "gif",
-      "svg",
-      "webp",
-      "bmp",
-      "txt",
-      "html",
-      "htm",
-    ].includes(format);
+  
+  // Extended list of previewable formats with better categorization
+  const previewableFormats = [
+    "pdf",
+    "png", "jpg", "jpeg", "gif", "svg", "webp", "bmp", "ico",
+    "txt", "html", "htm", "xml", "json", "csv",
+    "doc", "docx", "xls", "xlsx", "ppt", "pptx"
+  ];
+  
+  const isPreviewable = format && previewableFormats.includes(format);
+  const isPDF = format === "pdf";
+  const isImage = ["png", "jpg", "jpeg", "gif", "svg", "webp", "bmp", "ico"].includes(format || "");
+  const isText = ["txt", "html", "htm", "xml", "json", "csv"].includes(format || "");
 
   if (!isPreviewable) {
     return null;
   }
 
+  const handlePreviewLoad = () => {
+    setIsLoading(false);
+  };
+
+  const handlePreviewError = () => {
+    setIsLoading(false);
+    setLoadError(true);
+  };
+
   const renderPreview = () => {
-    if (loadError) {
+    // Show loading state
+    if (isLoading) {
       return (
         <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          <p>Loading preview...</p>
+        </div>
+      );
+    }
+
+    // Show error state
+    if (loadError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-4 p-6">
           <FileText className="h-12 w-12" />
-          <div className="text-center">
+          <div className="text-center space-y-2">
             <p className="font-medium">Unable to preview document</p>
             <p className="text-sm">
-              This document type may not support preview in the browser.
+              {isPDF 
+                ? "The PDF could not be loaded. This might be due to file size, format compatibility, or network issues."
+                : isImage 
+                ? "The image could not be loaded. The file might be corrupted or in an unsupported format."
+                : isText
+                ? "The text document could not be loaded. The file might be corrupted or in an unsupported format."
+                : "This document could not be previewed in the browser."
+              }
             </p>
-            <Button variant="outline" size="sm" className="mt-4" asChild>
-              <a href={document.url} target="_blank" rel="noopener noreferrer">
-                <Download className="mr-2 h-4 w-4" />
-                Open in new tab
-              </a>
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 mt-4">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  setLoadError(false);
+                  setIsLoading(true);
+                }}
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Retry Preview
+              </Button>
+              <Button variant="outline" size="sm" asChild>
+                <a href={document.url} target="_blank" rel="noopener noreferrer">
+                  <Download className="mr-2 h-4 w-4" />
+                  Download File
+                </a>
+              </Button>
+              {isPDF && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  asChild
+                >
+                  <a href={document.url} target="_blank" rel="noopener noreferrer">
+                    Open PDF in New Tab
+                  </a>
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       );
     }
 
-    if (format === "pdf") {
-      // Use Google Docs Viewer as fallback for PDFs that don't embed well
-      const googleViewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(
-        document.url || ""
-      )}&embedded=true`;
-
+    // PDF Preview with better handling
+    if (isPDF) {
       return (
-        <div className="w-full h-full">
-          <iframe
-            src={googleViewerUrl}
-            className="w-full h-full border-0"
-            title={document.title || "Document Preview"}
-            onError={() => setLoadError(true)}
-          />
+        <div className="w-full h-full flex flex-col">
+          <div className="flex items-center justify-between p-2 bg-muted border-b text-sm">
+            <span className="text-muted-foreground">PDF Document</span>
+            <Button variant="ghost" size="sm" asChild>
+              <a href={document.url} target="_blank" rel="noopener noreferrer">
+                <Download className="mr-2 h-4 w-4" />
+                Download PDF
+              </a>
+            </Button>
+          </div>
+          <div className="flex-1 relative">
+            {isLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-muted/30 z-10">
+                <div className="flex flex-col items-center space-y-2">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  <span className="text-sm text-muted-foreground">Loading PDF...</span>
+                </div>
+              </div>
+            )}
+            <iframe
+              src={document.url}
+              className="w-full h-full border-0"
+              title={document.title || "PDF Preview"}
+              onLoad={handlePreviewLoad}
+              onError={handlePreviewError}
+              sandbox="allow-scripts allow-same-origin"
+            />
+          </div>
         </div>
       );
     }
 
-    if (
-      ["png", "jpg", "jpeg", "gif", "svg", "webp", "bmp"].includes(format || "")
-    ) {
+    // Image Preview with better loading and error handling
+    if (isImage) {
       return (
-        <div className="flex items-center justify-center h-full p-4">
-          <img
-            src={document.url}
-            alt={document.title || "Document Preview"}
-            className="max-w-full max-h-full object-contain rounded-lg shadow-sm"
-            onError={() => setLoadError(true)}
-          />
+        <div className="flex flex-col h-full">
+          <div className="flex items-center justify-between p-2 bg-muted border-b text-sm">
+            <span className="text-muted-foreground">Image Preview</span>
+            <Button variant="ghost" size="sm" asChild>
+              <a href={document.url} target="_blank" rel="noopener noreferrer">
+                <Download className="mr-2 h-4 w-4" />
+                Download Image
+              </a>
+            </Button>
+          </div>
+          <div className="flex-1 flex items-center justify-center p-4 overflow-auto relative">
+            {isLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-muted/30 z-10">
+                <div className="flex flex-col items-center space-y-2">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  <span className="text-sm text-muted-foreground">Loading image...</span>
+                </div>
+              </div>
+            )}
+            <img
+              src={document.url}
+              alt={document.title || "Image Preview"}
+              className="max-w-full max-h-full object-contain rounded-lg shadow-sm"
+              onLoad={handlePreviewLoad}
+              onError={handlePreviewError}
+            />
+          </div>
         </div>
       );
     }
 
-    if (["txt", "html", "htm"].includes(format || "")) {
+    // Text-based documents
+    if (isText) {
       return (
-        <iframe
-          src={document.url}
-          className="w-full h-full border-0"
-          title={document.title || "Document Preview"}
-          onError={() => setLoadError(true)}
-        />
+        <div className="w-full h-full flex flex-col">
+          <div className="flex items-center justify-between p-2 bg-muted border-b text-sm">
+            <span className="text-muted-foreground">Text Document</span>
+            <Button variant="ghost" size="sm" asChild>
+              <a href={document.url} target="_blank" rel="noopener noreferrer">
+                <Download className="mr-2 h-4 w-4" />
+                Download File
+              </a>
+            </Button>
+          </div>
+          <div className="flex-1 overflow-auto relative">
+            {isLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-muted/30 z-10">
+                <div className="flex flex-col items-center space-y-2">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  <span className="text-sm text-muted-foreground">Loading document...</span>
+                </div>
+              </div>
+            )}
+            <iframe
+              src={document.url}
+              className="w-full h-full border-0"
+              title={document.title || "Text Document Preview"}
+              onLoad={handlePreviewLoad}
+              onError={handlePreviewError}
+              sandbox="allow-scripts allow-same-origin"
+            />
+          </div>
+        </div>
       );
     }
 
+    // Fallback for other previewable formats
     return (
-      <div className="flex items-center justify-center h-full text-muted-foreground">
-        <p>Preview not available for this document type</p>
+      <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-4 p-6">
+        <FileText className="h-12 w-12" />
+        <div className="text-center space-y-2">
+          <p className="font-medium">Preview Available</p>
+          <p className="text-sm">
+            This {format?.toUpperCase() || "document"} can be previewed but requires download for full viewing.
+          </p>
+          <Button variant="outline" size="sm" className="mt-4" asChild>
+            <a href={document.url} target="_blank" rel="noopener noreferrer">
+              <Download className="mr-2 h-4 w-4" />
+              Download {format?.toUpperCase() || "File"}
+            </a>
+          </Button>
+        </div>
       </div>
     );
   };
@@ -174,6 +310,11 @@ function DocumentPreview({
         setIsOpen(open);
         if (!open) {
           setLoadError(false);
+          setIsLoading(false);
+        } else {
+          // Reset states when opening
+          setLoadError(false);
+          setIsLoading(true);
         }
       }}
     >
@@ -183,24 +324,34 @@ function DocumentPreview({
           Preview
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-5xl w-[95vw] h-[85vh] p-0">
-        <DialogHeader className="p-6 pb-0 border-b">
-          <DialogTitle className="text-left">
-            {document.title || "Document Preview"}
-          </DialogTitle>
+      <DialogContent className="max-w-5xl w-[95vw] h-[85vh] p-0 flex flex-col sm:max-h-[90vh] sm:h-[90vh]">
+        <DialogHeader className="p-4 sm:p-6 pb-0 border-b">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <DialogTitle className="text-left break-words">
+              {document.title || "Document Preview"}
+            </DialogTitle>
+            <Badge variant="secondary" className="text-xs w-fit">
+              {format?.toUpperCase() || "FILE"}
+            </Badge>
+          </div>
           {document.description && (
-            <p className="text-sm text-muted-foreground text-left mt-1">
+            <p className="text-sm text-muted-foreground text-left mt-1 break-words">
               {document.description}
-            </p>
-          )}
-          {format && (
-            <p className="text-xs text-muted-foreground text-left mt-1">
-              Format: {format.toUpperCase()}
             </p>
           )}
         </DialogHeader>
         <div className="flex-1 overflow-hidden">
-          <div className="w-full h-full bg-muted/30">{renderPreview()}</div>
+          <div className="w-full h-full bg-muted/30">
+            {renderPreview()}
+          </div>
+        </div>
+        <div className="p-2 border-t bg-muted/50 flex justify-end">
+          <Button variant="ghost" size="sm" asChild>
+            <a href={document.url} target="_blank" rel="noopener noreferrer">
+              <Download className="mr-2 h-4 w-4" />
+              Download Original
+            </a>
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
