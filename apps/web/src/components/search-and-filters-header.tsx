@@ -100,8 +100,8 @@ export const SearchAndFiltersHeader = ({
   const [localSortBy, setLocalSortBy] = React.useState(sortBy);
   const [localSortOrder, setLocalSortOrder] = React.useState(sortOrder);
 
-  // Debounced search query
-  const debouncedSearchQuery = useDebouncedValue(localSearchQuery, 500);
+  // Increase debounce delay to allow typing full words
+  const debouncedSearchQuery = useDebouncedValue(localSearchQuery, 1000);
 
   // Update parent when debounced value changes
   React.useEffect(() => {
@@ -246,13 +246,15 @@ export const SearchAndFiltersHeader = ({
         </label>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search tenders..."
-            className="pl-10 w-full"
-            value={localSearchQuery}
-            onChange={(e) => setLocalSearchQuery(e.target.value)}
-          />
+          <form onSubmit={onSearchSubmit}>
+            <Input
+              type="search"
+              placeholder="Search tenders..."
+              className="pl-10 w-full"
+              value={localSearchQuery}
+              onChange={(e) => setLocalSearchQuery(e.target.value)}
+            />
+          </form>
           {localSearchQuery && (
             <Button
               type="button"
@@ -305,12 +307,21 @@ export const SearchAndFiltersHeader = ({
             <label className="text-sm font-medium text-foreground mb-2 block">
               Status:
             </label>
-            <Input
-              type="text"
-              placeholder="Filter by status..."
-              value={localStatus}
-              onChange={(e) => handleStatusChange(e.target.value)}
-            />
+            <Select value={localStatus} onValueChange={handleStatusChange}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All Statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="open">Open</SelectItem>
+                <SelectItem value="complete">Complete</SelectItem>
+                <SelectItem value="closed">Closed</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+                <SelectItem value="planned">Planned</SelectItem>
+                <SelectItem value="unsuccessful">Unsuccessful</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
@@ -492,11 +503,11 @@ export const SearchAndFiltersHeader = ({
               Filters
             </Button>
           </DrawerTrigger>
-          <DrawerContent>
-            <DrawerHeader>
+          <DrawerContent className="max-h-[80vh]">
+            <DrawerHeader className="pb-2">
               <DrawerTitle>Search & Filters</DrawerTitle>
             </DrawerHeader>
-            <div className="px-4 pb-6">
+            <div className="px-4 pb-6 overflow-y-auto max-h-[calc(80vh-100px)]">
               <FiltersContent />
             </div>
           </DrawerContent>
