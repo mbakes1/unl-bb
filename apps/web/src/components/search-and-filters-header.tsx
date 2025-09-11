@@ -307,12 +307,12 @@ export const SearchAndFiltersHeader = ({
             <label className="text-sm font-medium text-foreground mb-2 block">
               Status:
             </label>
-            <Select value={localStatus} onValueChange={handleStatusChange}>
+            <Select value={localStatus || "all"} onValueChange={(value) => handleStatusChange(value === "all" ? "" : value)}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Statuses</SelectItem>
+                <SelectItem value="all">All Statuses</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="open">Open</SelectItem>
                 <SelectItem value="complete">Complete</SelectItem>
