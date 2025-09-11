@@ -24,15 +24,6 @@ function HomeContent() {
     searchParams.get("dateTo") || new Date().toISOString().split("T")[0];
   const pageSize = parseInt(searchParams.get("pageSize") || "50", 10);
   const searchQuery = searchParams.get("search") || "";
-  const status = searchParams.get("status") || "";
-  const procurementMethod = searchParams.get("procurementMethod") || "";
-  const buyerName = searchParams.get("buyerName") || "";
-  const minValue = searchParams.get("minValue") || "";
-  const maxValue = searchParams.get("maxValue") || "";
-  const currency = searchParams.get("currency") || "";
-  const sortBy = searchParams.get("sortBy") || "releaseDate";
-  const sortOrder = searchParams.get("sortOrder") || "desc";
-  const isFilterOpen = searchParams.get("filterOpen") === "true";
 
   const { data, isLoading, error, refetch, isFetching } = useReleases({
     pageNumber: currentPage,
@@ -40,14 +31,6 @@ function HomeContent() {
     dateFrom,
     dateTo,
     searchQuery,
-    status,
-    procurementMethod,
-    buyerName,
-    minValue: minValue ? parseFloat(minValue) : undefined,
-    maxValue: maxValue ? parseFloat(maxValue) : undefined,
-    currency,
-    sortBy,
-    sortOrder: sortOrder as "asc" | "desc",
   });
 
   const releases = data?.releases || [];
@@ -200,9 +183,7 @@ function HomeContent() {
     updateUrlParams({ page: 1, filterOpen: false }); // Reset to first page when searching
   };
 
-  const toggleFilter = () => {
-    updateUrlParams({ filterOpen: !isFilterOpen });
-  };
+  
 
   const handlePageChange = (newPage: number) => {
     updateUrlParams({ page: newPage });
@@ -224,37 +205,7 @@ function HomeContent() {
     updateUrlParams({ search: newSearchQuery, page: 1 });
   };
 
-  const handleStatusChange = (newStatus: string) => {
-    updateUrlParams({ status: newStatus, page: 1 });
-  };
-
-  const handleProcurementMethodChange = (newProcurementMethod: string) => {
-    updateUrlParams({ procurementMethod: newProcurementMethod, page: 1 });
-  };
-
-  const handleBuyerNameChange = (newBuyerName: string) => {
-    updateUrlParams({ buyerName: newBuyerName, page: 1 });
-  };
-
-  const handleMinValueChange = (newMinValue: string) => {
-    updateUrlParams({ minValue: newMinValue, page: 1 });
-  };
-
-  const handleMaxValueChange = (newMaxValue: string) => {
-    updateUrlParams({ maxValue: newMaxValue, page: 1 });
-  };
-
-  const handleCurrencyChange = (newCurrency: string) => {
-    updateUrlParams({ currency: newCurrency, page: 1 });
-  };
-
-  const handleSortByChange = (newSortBy: string) => {
-    updateUrlParams({ sortBy: newSortBy, page: 1 });
-  };
-
-  const handleSortOrderChange = (newSortOrder: 'asc' | 'desc') => {
-    updateUrlParams({ sortOrder: newSortOrder, page: 1 });
-  };
+  
 
   const handleApplyFilters = () => {
     // This will trigger a refetch with current filter values
@@ -318,26 +269,7 @@ function HomeContent() {
         onDateToChange={handleDateToChange}
         pageSize={pageSize}
         onPageSizeChange={handlePageSizeChange}
-        onFilterToggle={toggleFilter}
-        isFilterOpen={isFilterOpen}
         onApplyFilters={handleApplyFilters}
-        // New filter props
-        status={status}
-        onStatusChange={handleStatusChange}
-        procurementMethod={procurementMethod}
-        onProcurementMethodChange={handleProcurementMethodChange}
-        buyerName={buyerName}
-        onBuyerNameChange={handleBuyerNameChange}
-        minValue={minValue}
-        onMinValueChange={handleMinValueChange}
-        maxValue={maxValue}
-        onMaxValueChange={handleMaxValueChange}
-        currency={currency}
-        onCurrencyChange={handleCurrencyChange}
-        sortBy={sortBy}
-        onSortByChange={handleSortByChange}
-        sortOrder={sortOrder as 'asc' | 'desc'}
-        onSortOrderChange={handleSortOrderChange}
       />
 
       <div className="lg:ml-96 px-4 sm:px-6 lg:px-8 py-6">
