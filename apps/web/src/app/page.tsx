@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useMemo, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { RefreshCw, Clock } from "lucide-react";
@@ -34,47 +34,15 @@ function HomeContent() {
   const releases = data?.releases || [];
   const hasNextPage = Boolean(data?.links?.next);
 
-  // Helper function to update URL parameters
-  const updateUrlParams = (
-    updates: Record<string, string | number | boolean>
-  ) => {
-    const params = new URLSearchParams(searchParams.toString());
-
-    Object.entries(updates).forEach(([key, value]) => {
-      if (value === "" || value === null || value === undefined) {
-        params.delete(key);
-      } else {
-        params.set(key, String(value));
-      }
-    });
-
-    router.push(`?${params.toString()}`, { scroll: false });
-  };
-
-  const formatDateISO = (dateString: string | undefined) => {
-    if (!dateString) return "N/A";
-    try {
-      return new Date(dateString).toLocaleDateString("en-ZA", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      });
-    } catch {
-      return dateString;
-    }
-  };
-
-  const isNewTender = (releaseDate: string | undefined) => {
+  // Memoize expensive date calculations
+  const isNewTender = useCallback((releaseDate: string | undefined) => {
     if (!releaseDate) return false;
     const release = new Date(releaseDate);
     const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
     return release > twoDaysAgo;
-  };
+  }, []);
 
-  const formatClosingDate = (endDate: string | undefined) => {
+  const formatClosingDate = useCallback((endDate: string | undefined) => {
     if (!endDate) return { text: "No closing date", urgent: false };
 
     try {
@@ -133,9 +101,9 @@ function HomeContent() {
     } catch {
       return { text: endDate, urgent: false };
     }
-  };
+  }, []);
 
-  const getStatusClass = (status: string | undefined) => {
+  const getStatusClass = useCallback((status: string | undefined) => {
     if (!status) return "";
 
     const statusLower = status.toLowerCase();
@@ -150,7 +118,63 @@ function HomeContent() {
       return "border-l-red-500";
     }
     return "border-l-gray-500";
-  };
+  }, []);
+
+  // Memoize processed releases to avoid recalculating on every render
+  const processedReleases = useMemo(() => {
+    return releases.map((release) => {
+      const tender = release.tender || {
+        id: "",
+        title: "",
+        description: "",
+        status: "",
+        procurementMethodDetails: "",
+        procurementMethod: "",
+        mainProcurementCategory: "",
+        tenderPeriod: undefined,
+        procuringEntity: undefined,
+        value: undefined,
+      };
+      const tenderPeriod = tender.tenderPeriod || {
+        startDate: undefined,
+        endDate: undefined,
+      };
+      const procuringEntity = tender.procuringEntity || {
+        name: undefined,
+        id: undefined,
+      };
+      const buyer = release.buyer || { name: undefined };
+
+      return {
+        ...release,
+        tender,
+        tenderPeriod,
+        procuringEntity,
+        buyer,
+        closingInfo: formatClosingDate(tenderPeriod.endDate),
+        showNewBadge: isNewTender(release.date),
+        statusClass: getStatusClass(tender.status),
+      };
+    });
+  }, [releases, formatClosingDate, isNewTender, getStatusClass]);
+
+  // Helper function to update URL parameters
+  const updateUrlParams = useCallback(
+    (updates: Record<string, string | number | boolean>) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value === "" || value === null || value === undefined) {
+          params.delete(key);
+        } else {
+          params.set(key, String(value));
+        }
+      });
+
+      router.push(`?${params.toString()}`, { scroll: false });
+    },
+    [searchParams, router]
+  );
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -251,81 +275,52 @@ function HomeContent() {
         </div>
 
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
-          {releases.map((release) => {
-            const tender = release.tender || {
-              id: "",
-              title: "",
-              description: "",
-              status: "",
-              procurementMethodDetails: "",
-              procurementMethod: "",
-              mainProcurementCategory: "",
-              tenderPeriod: undefined,
-              procuringEntity: undefined,
-              value: undefined,
-            };
-            const tenderPeriod = tender.tenderPeriod || {
-              startDate: undefined,
-              endDate: undefined,
-            };
-            const procuringEntity = tender.procuringEntity || {
-              name: undefined,
-              id: undefined,
-            };
-            const buyer = release.buyer || { name: undefined };
-
-            const closingInfo = formatClosingDate(tenderPeriod.endDate);
-            const showNewBadge = isNewTender(release.date);
-
-            return (
-              <Link
-                key={release.ocid}
-                href={`/detail?ocid=${encodeURIComponent(release.ocid)}`}
-                className={`block rounded-lg border-l-4 bg-card p-5 shadow-sm hover:shadow-md transition-all ${getStatusClass(
-                  tender.status
-                )}`}
-              >
-                <div className="flex justify-between items-start mb-3">
-                  <div className="flex-1">
-                    {tender.description && (
-                      <div className="border-b border-border pb-3 text-muted-foreground">
-                        {tender.description}
-                      </div>
-                    )}
-                  </div>
-                  {showNewBadge && (
-                    <Badge
-                      variant="default"
-                      className="ml-2 bg-green-500 text-white hover:bg-green-600 flex-shrink-0 animate-pulse"
-                    >
-                      NEW
-                    </Badge>
+          {processedReleases.map((release) => (
+            <Link
+              key={release.ocid}
+              href={`/detail?ocid=${encodeURIComponent(release.ocid)}`}
+              className={`block rounded-lg border-l-4 bg-card p-5 shadow-sm hover:shadow-md transition-all ${release.statusClass}`}
+            >
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex-1">
+                  {release.tender.description && (
+                    <div className="border-b border-border pb-3 text-muted-foreground">
+                      {release.tender.description}
+                    </div>
                   )}
                 </div>
-
-                <div className="space-y-3">
-                  <div className="text-foreground font-medium">
-                    {procuringEntity.name || buyer.name || "N/A"}
-                  </div>
-                  <div className="text-muted-foreground">
-                    {tender.procurementMethodDetails ||
-                      tender.procurementMethod ||
-                      "N/A"}
-                  </div>
-                  <div
-                    className={`flex items-center gap-2 text-sm font-medium ${
-                      closingInfo.urgent
-                        ? "text-orange-600 dark:text-orange-400"
-                        : "text-muted-foreground"
-                    }`}
+                {release.showNewBadge && (
+                  <Badge
+                    variant="default"
+                    className="ml-2 bg-green-500 text-white hover:bg-green-600 flex-shrink-0 animate-pulse"
                   >
-                    <Clock className="h-4 w-4" />
-                    {closingInfo.text}
-                  </div>
+                    NEW
+                  </Badge>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <div className="text-foreground font-medium">
+                  {release.procuringEntity.name || release.buyer.name || "N/A"}
                 </div>
-              </Link>
-            );
-          })}
+                <div className="text-muted-foreground">
+                  {release.tender.procurementMethodDetails ||
+                    release.tender.procurementMethod ||
+                    "N/A"}
+                </div>
+                <div
+                  className={`flex items-center gap-2 text-sm font-medium ${
+                    release.closingInfo.urgent
+                      ? "text-orange-600 dark:text-orange-400"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  <Clock className="h-4 w-4" />
+                  {release.closingInfo.text}
+                </div>
+              </div>
+            </Link>
+          ))}
 
           {releases.length === 0 && !isLoading && !error && (
             <div className="col-span-full rounded-lg bg-card p-8 text-center shadow-sm">

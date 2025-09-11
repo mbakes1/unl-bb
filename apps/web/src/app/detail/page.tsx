@@ -51,64 +51,155 @@ function DocumentPreview({
   };
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   if (!document.url) {
     return null;
   }
 
-  const format = document.format?.toLowerCase();
+  // Detect format from URL or provided format
+  const getDocumentFormat = () => {
+    const format = document.format?.toLowerCase();
+    if (format) return format;
+
+    // Try to detect from URL extension
+    if (document.url) {
+      const urlParts = document.url.split(".");
+      const extension = urlParts[urlParts.length - 1]
+        ?.toLowerCase()
+        .split("?")[0];
+      return extension;
+    }
+    return undefined;
+  };
+
+  const format = getDocumentFormat();
   const isPreviewable =
     format &&
-    ["pdf", "png", "jpg", "jpeg", "gif", "svg", "webp"].includes(format);
+    [
+      "pdf",
+      "png",
+      "jpg",
+      "jpeg",
+      "gif",
+      "svg",
+      "webp",
+      "bmp",
+      "txt",
+      "html",
+      "htm",
+    ].includes(format);
 
   if (!isPreviewable) {
     return null;
   }
 
   const renderPreview = () => {
-    if (format === "pdf") {
+    if (loadError) {
       return (
-        <iframe
-          src={document.url}
-          className="w-full h-full border-0"
-          title={document.title || "Document Preview"}
-        />
+        <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-4">
+          <FileText className="h-12 w-12" />
+          <div className="text-center">
+            <p className="font-medium">Unable to preview document</p>
+            <p className="text-sm">
+              This document type may not support preview in the browser.
+            </p>
+            <Button variant="outline" size="sm" className="mt-4" asChild>
+              <a href={document.url} target="_blank" rel="noopener noreferrer">
+                <Download className="mr-2 h-4 w-4" />
+                Open in new tab
+              </a>
+            </Button>
+          </div>
+        </div>
       );
     }
 
-    if (["png", "jpg", "jpeg", "gif", "svg", "webp"].includes(format || "")) {
+    if (format === "pdf") {
+      // Use Google Docs Viewer as fallback for PDFs that don't embed well
+      const googleViewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(
+        document.url || ""
+      )}&embedded=true`;
+
       return (
-        <div className="flex items-center justify-center h-full p-4">
-          <img
-            src={document.url}
-            alt={document.title || "Document Preview"}
-            className="max-w-full max-h-full object-contain"
+        <div className="w-full h-full">
+          <iframe
+            src={googleViewerUrl}
+            className="w-full h-full border-0"
+            title={document.title || "Document Preview"}
+            onError={() => setLoadError(true)}
           />
         </div>
       );
     }
 
-    return null;
+    if (
+      ["png", "jpg", "jpeg", "gif", "svg", "webp", "bmp"].includes(format || "")
+    ) {
+      return (
+        <div className="flex items-center justify-center h-full p-4">
+          <img
+            src={document.url}
+            alt={document.title || "Document Preview"}
+            className="max-w-full max-h-full object-contain rounded-lg shadow-sm"
+            onError={() => setLoadError(true)}
+          />
+        </div>
+      );
+    }
+
+    if (["txt", "html", "htm"].includes(format || "")) {
+      return (
+        <iframe
+          src={document.url}
+          className="w-full h-full border-0"
+          title={document.title || "Document Preview"}
+          onError={() => setLoadError(true)}
+        />
+      );
+    }
+
+    return (
+      <div className="flex items-center justify-center h-full text-muted-foreground">
+        <p>Preview not available for this document type</p>
+      </div>
+    );
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        setIsOpen(open);
+        if (!open) {
+          setLoadError(false);
+        }
+      }}
+    >
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="w-full">
           <FileText className="mr-2 h-3 w-3" />
           Preview
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl w-[90vw] h-[80vh] p-0">
-        <DialogHeader className="p-6 pb-0">
+      <DialogContent className="max-w-5xl w-[95vw] h-[85vh] p-0">
+        <DialogHeader className="p-6 pb-0 border-b">
           <DialogTitle className="text-left">
             {document.title || "Document Preview"}
           </DialogTitle>
+          {document.description && (
+            <p className="text-sm text-muted-foreground text-left mt-1">
+              {document.description}
+            </p>
+          )}
+          {format && (
+            <p className="text-xs text-muted-foreground text-left mt-1">
+              Format: {format.toUpperCase()}
+            </p>
+          )}
         </DialogHeader>
-        <div className="flex-1 p-6 pt-4 overflow-hidden">
-          <div className="w-full h-full bg-muted/30 rounded-lg overflow-auto">
-            {renderPreview()}
-          </div>
+        <div className="flex-1 overflow-hidden">
+          <div className="w-full h-full bg-muted/30">{renderPreview()}</div>
         </div>
       </DialogContent>
     </Dialog>
