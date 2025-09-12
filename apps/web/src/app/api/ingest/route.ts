@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { processAndSavePage } from "@/lib/processAndSavePage";
 
 export async function GET(request: Request) {
   // Secure your endpoint to prevent public abuse
@@ -11,69 +12,75 @@ export async function GET(request: Request) {
   try {
     console.log("Starting data ingestion...");
 
+    // Check if backfill is complete
+    const state = await prisma.ingestionState.findUnique({ where: { id: 'singleton' } });
+    if (!state || !state.isBackfillComplete) {
+      console.log("Backfill is not complete yet. Skipping daily sync.");
+      return NextResponse.json({
+        success: true,
+        message: "Backfill is not complete yet. Skipping daily sync.",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     // Fetch data from the external OCDS API
     // Fetch data from the external OCDS API with required date parameters
     const dateTo = new Date().toISOString().split("T")[0]; // Today
-    const dateFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0]; // 30 days ago
+    const dateFrom = state.lastDailySync.toISOString().split("T")[0]; // Last sync date
 
-    const response = await fetch(
-      `https://ocds-api.etenders.gov.za/api/OCDSReleases?pageSize=100&PageNumber=1&dateFrom=${dateFrom}&dateTo=${dateTo}`
-    );
+    // We need to paginate through the results
+    let pageNumber = 1;
+    let totalUpserted = 0;
+    let hasMorePages = true;
 
-    if (!response.ok) {
-      throw new Error(`External API error: ${response.status}`);
-    }
+    while (hasMorePages) {
+      const response = await fetch(
+        `https://ocds-api.etenders.gov.za/api/OCDSReleases?pageSize=100&PageNumber=${pageNumber}&dateFrom=${dateFrom}&dateTo=${dateTo}`
+      );
 
-    const data = await response.json();
-    const releases = data.releases || [];
+      if (!response.ok) {
+        throw new Error(`External API error: ${response.status}`);
+      }
 
-    console.log(`Fetched ${releases.length} releases from external API`);
+      const data = await response.json();
+      const releases = data.releases || [];
 
-    // Transform and upsert data into Neon DB
-    let upsertedCount = 0;
-    for (const release of releases) {
-      try {
-        // Extract searchable fields from the nested data
-        const title = release.tender?.title || "";
-        const buyerName =
-          release.buyer?.name || release.tender?.procuringEntity?.name || "";
-        const status = release.tender?.status || "";
-        const releaseDate = release.date ? new Date(release.date) : new Date();
+      console.log(`Fetched ${releases.length} releases from external API (page ${pageNumber})`);
 
-        await prisma.release.upsert({
-          where: { ocid: release.ocid },
-          update: {
-            releaseDate,
-            data: release, // Store the full JSON object
-            title,
-            buyerName,
-            status,
-          },
-          create: {
-            ocid: release.ocid,
-            releaseDate,
-            data: release,
-            title,
-            buyerName,
-            status,
-          },
+      // Process and save all data points for this page into the new relational schema
+      await processAndSavePage(releases);
+      totalUpserted += releases.length;
+
+      // Check if there are more pages
+      hasMorePages = data.links?.next !== undefined;
+      pageNumber++;
+
+      // If more data exists, trigger the next run
+      if (hasMorePages) {
+        // Fire-and-forget call to the next page
+        fetch(`${process.env.VERCEL_URL}/api/ingest?page=${pageNumber}&dateFrom=${dateFrom}&dateTo=${dateTo}`, { 
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${process.env.CRON_SECRET}`
+          }
         });
-
-        upsertedCount++;
-      } catch (error) {
-        console.error(`Error upserting release ${release.ocid}:`, error);
-        // Continue with other releases even if one fails
+        // For now, we'll break the loop and let the chained call handle the rest
+        // In a more robust implementation, you might want to handle this differently
+        break;
       }
     }
 
-    console.log(`Successfully upserted ${upsertedCount} releases`);
+    // Update the last daily sync time
+    await prisma.ingestionState.update({
+      where: { id: 'singleton' },
+      data: { lastDailySync: new Date() },
+    });
+
+    console.log(`Successfully upserted ${totalUpserted} releases`);
 
     return NextResponse.json({
       success: true,
-      fetched: releases.length,
-      upserted: upsertedCount,
+      fetched: totalUpserted,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

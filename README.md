@@ -58,6 +58,8 @@ unl-bb/
 - Adjust page size
 - Pagination controls
 - Responsive card layout
+- Full-text search across multiple fields (title, buyer name, status, procurement method)
+- Improved search performance using PostgreSQL full-text search
 
 ### Tender Detail Viewer
 - Detailed view of individual tenders

@@ -68,10 +68,26 @@ export async function GET(request: NextRequest) {
       skip: (page - 1) * pageSize,
       take: pageSize,
       orderBy: { releaseDate: "desc" },
-      select: { data: true },
+      select: {
+        id: true,
+        ocid: true,
+        releaseId: true,
+        releaseDate: true,
+        initiationType: true,
+        language: true,
+        tags: true,
+        tender: true,
+        planning: true,
+        buyer: true,
+        parties: true,
+        awards: true,
+        contracts: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
 
-    const releaseData = releases.map((r: { data: any }) => r.data);
+    const releaseData = releases;
     const totalPages = Math.ceil(totalCount / pageSize);
     const hasNext = page < totalPages;
 
@@ -142,18 +158,34 @@ async function updateDataInBackground() {
           where: { ocid: release.ocid },
           update: {
             releaseDate,
-            data: release,
-            title,
-            buyerName,
-            status,
+            tender: {
+              update: {
+                title,
+                status,
+              },
+            },
+            buyer: {
+              update: {
+                name: buyerName,
+              },
+            },
           },
           create: {
             ocid: release.ocid,
             releaseDate,
-            data: release,
-            title,
-            buyerName,
-            status,
+            tender: {
+              create: {
+                tenderId: release.tender?.id || release.ocid,
+                title,
+                status,
+              },
+            },
+            buyer: {
+              create: {
+                buyerId: release.buyer?.id || release.ocid,
+                name: buyerName,
+              },
+            },
           },
         });
       } catch (error) {

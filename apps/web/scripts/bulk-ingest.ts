@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { processAndSavePage } from "../src/lib/processAndSavePage";
 
 const prisma = new PrismaClient();
 
@@ -42,53 +43,9 @@ async function bulkIngest() {
         `📊 Processing ${data.releases.length} releases from page ${page}...`
       );
 
-      // Process releases in batches to avoid memory issues
-      const batchSize = 100;
-      for (let i = 0; i < data.releases.length; i += batchSize) {
-        const batch = data.releases.slice(i, i + batchSize);
-
-        const upsertPromises = batch
-          .map((release: any) => {
-            if (!release || !release.ocid) return null;
-
-            const title = release.tender?.title || "";
-            const buyerName =
-              release.parties?.find((p: any) => p.roles?.includes("buyer"))
-                ?.name || "";
-            const status = release.tender?.status || "";
-            const releaseDate = release.date
-              ? new Date(release.date)
-              : new Date();
-
-            return prisma.release.upsert({
-              where: { ocid: release.ocid },
-              update: {
-                data: release,
-                releaseDate,
-                title,
-                buyerName,
-                status,
-              },
-              create: {
-                ocid: release.ocid,
-                data: release,
-                releaseDate,
-                title,
-                buyerName,
-                status,
-              },
-            });
-          })
-          .filter(Boolean);
-
-        await Promise.all(upsertPromises);
-        console.log(
-          `✅ Processed batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(
-            data.releases.length / batchSize
-          )} from page ${page}`
-        );
-      }
-
+      // Process releases using the new processAndSavePage function
+      await processAndSavePage(data.releases);
+      
       totalProcessed += data.releases.length;
       console.log(`📈 Total processed so far: ${totalProcessed} releases`);
 

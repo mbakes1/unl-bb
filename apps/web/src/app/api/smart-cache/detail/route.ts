@@ -76,18 +76,34 @@ export async function POST(request: NextRequest) {
           where: { ocid },
           update: {
             releaseDate,
-            data: releaseData,
-            title,
-            buyerName,
-            status,
+            tender: {
+              update: {
+                title,
+                status,
+              },
+            },
+            buyer: {
+              update: {
+                name: buyerName,
+              },
+            },
           },
           create: {
             ocid,
             releaseDate,
-            data: releaseData,
-            title,
-            buyerName,
-            status,
+            tender: {
+              create: {
+                tenderId: releaseData.tender?.id || ocid,
+                title,
+                status,
+              },
+            },
+            buyer: {
+              create: {
+                buyerId: releaseData.buyer?.id || ocid,
+                name: buyerName,
+              },
+            },
           },
         });
 

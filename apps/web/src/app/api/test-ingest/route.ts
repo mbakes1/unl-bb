@@ -38,18 +38,34 @@ export async function GET() {
           where: { ocid: release.ocid },
           update: {
             releaseDate,
-            data: release,
-            title,
-            buyerName,
-            status,
+            tender: {
+              update: {
+                title,
+                status,
+              },
+            },
+            buyer: {
+              update: {
+                name: buyerName,
+              },
+            },
           },
           create: {
             ocid: release.ocid,
             releaseDate,
-            data: release,
-            title,
-            buyerName,
-            status,
+            tender: {
+              create: {
+                tenderId: release.tender?.id || release.ocid,
+                title,
+                status,
+              },
+            },
+            buyer: {
+              create: {
+                buyerId: release.buyer?.id || release.ocid,
+                name: buyerName,
+              },
+            },
           },
         });
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { performanceMonitor, dbCacheMetrics } from "@/lib/performance-monitor";
+import { processAndSavePage } from "@/lib/processAndSavePage";
 
 export async function GET(
   request: NextRequest,
@@ -15,13 +16,15 @@ export async function GET(
       performanceMonitor.trackDatabaseQuery("findReleaseByOcid");
     dbTracker.start();
 
-    const release = await prisma.release.findUnique({
+    // Note: We're using 'any' here because the Prisma types are based on the old schema
+    const release: any = await prisma.release.findUnique({
       where: { ocid: decodedOcid },
       select: {
-        data: true,
+        // data field no longer exists in the new schema
+        // We'll need to get this data from the related models
         updatedAt: true, // Include for freshness check
         createdAt: true,
-      },
+      } as any,
     });
 
     dbTracker.end();
@@ -49,7 +52,71 @@ export async function GET(
       refreshDetailInBackground(decodedOcid).catch(console.error);
     }
 
-    return NextResponse.json(release.data, {
+    // Since we no longer have the data directly in the Release model,
+    // we need to construct it from the related models
+    const tender = await prisma.tender.findUnique({
+      where: { releaseId: release.id }
+    });
+    
+    const buyer = await prisma.buyer.findUnique({
+      where: { releaseId: release.id }
+    });
+    
+    const parties = await prisma.party.findMany({
+      where: { releaseId: release.id }
+    });
+    
+    const awards = await prisma.award.findMany({
+      where: { releaseId: release.id },
+      include: { suppliers: true }
+    });
+    
+    const contracts = await prisma.contract.findMany({
+      where: { releaseId: release.id }
+    });
+    
+    // Construct the data object from the related models
+    const data = {
+      ocid: decodedOcid,
+      id: release.id,
+      date: release.releaseDate,
+      // Add other fields from related models as needed
+      tender: tender ? {
+        id: tender.tenderId,
+        title: tender.title,
+        status: tender.status,
+        description: tender.description,
+        mainProcurementCategory: tender.mainProcurementCategory,
+        procurementMethod: tender.procurementMethod,
+        procurementMethodDetails: tender.procurementMethodDetails,
+        value: tender.valueJson,
+        tenderPeriod: tender.tenderPeriodJson,
+        procuringEntity: tender.procuringEntityJson,
+      } : undefined,
+      buyer: buyer ? {
+        id: buyer.buyerId,
+        name: buyer.name
+      } : undefined,
+      parties,
+      awards: awards.map(award => ({
+        id: award.awardId,
+        title: award.title,
+        status: award.status,
+        date: award.awardDate,
+        value: award.valueJson,
+        suppliers: award.suppliers
+      })),
+      contracts: contracts.map(contract => ({
+        id: contract.contractId,
+        awardID: contract.awardID,
+        title: contract.title,
+        status: contract.status,
+        period: contract.periodJson,
+        value: contract.valueJson
+      }))
+    };
+
+    return NextResponse.json(data, {
       headers: {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
@@ -84,47 +151,8 @@ async function refreshDetailInBackground(ocid: string) {
 
     const releaseData = await response.json();
 
-    // Extract searchable fields for optimization
-    const title = releaseData.tender?.title || "";
-    const buyerName =
-      releaseData.buyer?.name ||
-      releaseData.tender?.procuringEntity?.name ||
-      "";
-    const status = releaseData.tender?.status || "";
-    const procurementMethod = releaseData.tender?.procurementMethod || "";
-    const mainProcurementCategory = releaseData.tender?.mainProcurementCategory || "";
-    const valueAmount = releaseData.tender?.value?.amount || null;
-    const currency = releaseData.tender?.value?.currency || null;
-    const releaseDate = releaseData.date
-      ? new Date(releaseData.date)
-      : new Date();
-
-    await prisma.release.upsert({
-      where: { ocid },
-      update: {
-        releaseDate,
-        data: releaseData,
-        title,
-        buyerName,
-        status,
-        procurementMethod,
-        mainProcurementCategory,
-        valueAmount,
-        currency,
-      },
-      create: {
-        ocid,
-        releaseDate,
-        data: releaseData,
-        title,
-        buyerName,
-        status,
-        procurementMethod,
-        mainProcurementCategory,
-        valueAmount,
-        currency,
-      },
-    });
+    // Process and save the data using our new processAndSavePage function
+    await processAndSavePage([releaseData]);
 
     console.log(`Successfully refreshed detail data for ${ocid}`);
   } catch (error) {
@@ -157,42 +185,8 @@ async function fallbackToExternalDetailAPI(ocid: string) {
 
     // Try to cache the fetched data for future requests
     try {
-      const title = data.tender?.title || "";
-      const buyerName =
-        data.buyer?.name || data.tender?.procuringEntity?.name || "";
-      const status = data.tender?.status || "";
-      const procurementMethod = data.tender?.procurementMethod || "";
-      const mainProcurementCategory = data.tender?.mainProcurementCategory || "";
-      const valueAmount = data.tender?.value?.amount || null;
-      const currency = data.tender?.value?.currency || null;
-      const releaseDate = data.date ? new Date(data.date) : new Date();
-
-      await prisma.release.upsert({
-        where: { ocid },
-        update: {
-          releaseDate,
-          data,
-          title,
-          buyerName,
-          status,
-          procurementMethod,
-          mainProcurementCategory,
-          valueAmount,
-          currency,
-        },
-        create: {
-          ocid,
-          releaseDate,
-          data,
-          title,
-          buyerName,
-          status,
-          procurementMethod,
-          mainProcurementCategory,
-          valueAmount,
-          currency,
-        },
-      });
+      // Process and save the data using our new processAndSavePage function
+      await processAndSavePage([data]);
     } catch (cacheError) {
       console.error(`Failed to cache detail data for ${ocid}:`, cacheError);
       // Continue anyway - we have the data to return

@@ -13,30 +13,168 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Manages the state of our ingestion pipeline
+model IngestionState {
+  id                      String   @id
+  isBackfillComplete      Boolean  @default(false)
+  lastHistoricalPage      Int      @default(0)
+  lastDailySync           DateTime @default("1970-01-01T00:00:00Z")
+  lastModified            DateTime @updatedAt
+}
+
+// Central model for each OCDS release
 model Release {
-  id                    Int      @id @default(autoincrement())
-  ocid                  String   @unique // Open Contracting ID, for easy lookups
-  releaseDate           DateTime
-  data                  Json     // The full JSON blob of the release
-  title                 String?  // For full-text search
-  buyerName             String?  // For filtering by buyer
-  status                String?  // Tender status for filtering
-  procurementMethod     String?  // Procurement method for filtering
-  mainProcurementCategory String? // Main procurement category for filtering
-  valueAmount           Float?   // Value amount for filtering by value range
-  currency              String?  // Currency for value filtering
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id             Int       @id @default(autoincrement())
+  ocid           String    @unique
+  releaseId      String    @default("") // Adding a default value to handle existing data
+  releaseDate    DateTime
+  initiationType String?
+  language       String?
+  tags           String[]
+
+  // One-to-one relations
+  tender         Tender?
+  planning       Planning?
+  buyer          Buyer?
+
+  // One-to-many relations
+  parties        Party[]
+  awards         Award[]
+  contracts      Contract[]
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([releaseDate])
-  @@index([buyerName])
+}
+
+model Tender {
+  id                        String    @id @default(cuid())
+  releaseId                 Int       @unique
+  release                   Release   @relation(fields: [releaseId], references: [id])
+  
+  tenderId                  String
+  title                     String?
+  status                    String?
+  description               String?
+  mainProcurementCategory   String?
+  procurementMethod         String?
+  procurementMethodDetails  String?
+  
+  // Storing complex but less-queried data as JSONB
+  valueJson                 Json?     @map("value") // Tender value
+  tenderPeriodJson          Json?     @map("tenderPeriod")
+  procuringEntityJson       Json?     @map("procuringEntity")
+  
+  // One-to-many relations
+  documents                 Document[]
+  items                     TenderItem[]
+  tenderers                 Tenderer[]
+
+  @@index([title])
   @@index([status])
-  @@index([procurementMethod])
   @@index([mainProcurementCategory])
-  @@index([valueAmount])
-  @@index([createdAt])
-  // Composite indexes for common filter combinations
-  @@index([releaseDate, mainProcurementCategory])
-  @@index([releaseDate, buyerName])
-  @@index([mainProcurementCategory, releaseDate])
+}
+
+model Planning {
+  id          String   @id @default(cuid())
+  releaseId   Int      @unique
+  release     Release  @relation(fields: [releaseId], references: [id])
+  rationale   String?
+  budgetJson  Json?    @map("budget")
+}
+
+model Buyer {
+  id        String  @id @default(cuid())
+  releaseId Int     @unique
+  release   Release @relation(fields: [releaseId], references: [id])
+  buyerId   String
+  name      String?
+
+  @@index([name])
+}
+
+model Party {
+  id         String   @id @default(cuid())
+  releaseId  Int
+  release    Release  @relation(fields: [releaseId], references: [id])
+  partyId    String
+  name       String?
+  roles      String[]
+  
+  // Store the rest as JSONB for full data capture without excessive columns
+  detailsJson Json? @map("details")
+
+  @@index([name])
+  @@unique([partyId, releaseId])
+}
+
+model Award {
+  id         String   @id @default(cuid())
+  releaseId  Int
+  release    Release  @relation(fields: [releaseId], references: [id])
+  awardId    String
+  title      String?
+  status     String?
+  awardDate  DateTime?
+  valueJson  Json?    @map("value")
+  
+  suppliers  Supplier[]
+
+  @@unique([awardId, releaseId])
+}
+
+model Supplier {
+  id       String @id @default(cuid())
+  awardId  String
+  award    Award  @relation(fields: [awardId], references: [id])
+  supplierId String
+  name     String
+
+  @@unique([supplierId, awardId])
+}
+
+model Contract {
+  id          String   @id @default(cuid())
+  releaseId   Int
+  release     Release  @relation(fields: [releaseId], references: [id])
+  contractId  String
+  awardID     String?
+  title       String?
+  status      String?
+  periodJson  Json?    @map("period")
+  valueJson   Json?    @map("value")
+
+  @@unique([contractId, releaseId])
+}
+
+model Document {
+  id           String   @id @default(cuid())
+  tenderId     String
+  tender       Tender   @relation(fields: [tenderId], references: [id])
+  documentId   String
+  documentType String?
+  title        String?
+  url          String?
+  format       String?
+  language     String?
+  datePublished DateTime?
+}
+
+model TenderItem {
+  id            String @id @default(cuid())
+  tenderId      String
+  tender        Tender @relation(fields: [tenderId], references: [id])
+  itemId        String
+  description   String?
+  quantity      Float?
+  unitName      String?
+}
+
+model Tenderer {
+  id         String @id @default(cuid())
+  tenderId   String
+  tender     Tender @relation(fields: [tenderId], references: [id])
+  tendererId String
+  name       String
 }

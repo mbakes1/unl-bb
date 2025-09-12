@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { processAndSavePage } from "../src/lib/processAndSavePage";
 
 const prisma = new PrismaClient();
 
@@ -35,40 +36,10 @@ async function initialIngest() {
         `Processing ${releases.length} releases from page ${page}...`
       );
 
-      for (const release of releases) {
-        try {
-          const title = release.tender?.title || "";
-          const buyerName =
-            release.buyer?.name || release.tender?.procuringEntity?.name || "";
-          const status = release.tender?.status || "";
-          const releaseDate = release.date
-            ? new Date(release.date)
-            : new Date();
-
-          await prisma.release.upsert({
-            where: { ocid: release.ocid },
-            update: {
-              releaseDate,
-              data: release,
-              title,
-              buyerName,
-              status,
-            },
-            create: {
-              ocid: release.ocid,
-              releaseDate,
-              data: release,
-              title,
-              buyerName,
-              status,
-            },
-          });
-
-          totalIngested++;
-        } catch (error) {
-          console.error(`Error processing release ${release.ocid}:`, error);
-        }
-      }
+      // Process releases using the new processAndSavePage function
+      await processAndSavePage(releases);
+      
+      totalIngested += releases.length;
 
       // Add a small delay between pages to be respectful to the API
       await new Promise((resolve) => setTimeout(resolve, 1000));

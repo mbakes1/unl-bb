@@ -8,17 +8,18 @@ async function backfillIndustries() {
 
   try {
     // Get all releases that don't have a mainProcurementCategory or where it's empty
+    // Note: We're using 'any' here because the Prisma types are based on the old schema
     const releases = await prisma.release.findMany({
       where: {
         OR: [
-          { mainProcurementCategory: null },
-          { mainProcurementCategory: "" }
+          { mainProcurementCategory: null as any },
+          { mainProcurementCategory: "" as any }
         ]
-      },
+      } as any,
       select: {
         ocid: true,
-        title: true,
-        data: true
+        // title and data fields no longer exist in the new schema
+        // We'll need to get this data from the related Tender model
       }
     });
 
@@ -30,28 +31,20 @@ async function backfillIndustries() {
     for (const release of releases) {
       try {
         // Extract industry from title
-        const industry = extractIndustry(release.title || "");
+        // Since we no longer have the title directly in the Release model,
+        // we need to get it from the related Tender model
+        const tender = await prisma.tender.findUnique({
+          where: { releaseId: release.ocid as any }
+        });
         
-        if (industry) {
-          // Ensure release.data is an object before spreading
-          const releaseData = typeof release.data === 'object' && release.data !== null 
-            ? release.data 
-            : {};
-          
-          // Update the release with the new industry category
-          await prisma.release.update({
-            where: { ocid: release.ocid },
+        const industry = extractIndustry(tender?.title || "");
+        
+        if (industry && tender) {
+          // Update the tender with the new industry category
+          await prisma.tender.update({
+            where: { releaseId: release.ocid as any },
             data: {
-              mainProcurementCategory: industry,
-              data: {
-                ...releaseData,
-                tender: {
-                  ...(typeof releaseData === 'object' && releaseData !== null && 'tender' in releaseData 
-                    ? (releaseData as any).tender 
-                    : {}),
-                  mainProcurementCategory: industry
-                }
-              }
+              mainProcurementCategory: industry
             }
           });
           updatedCount++;

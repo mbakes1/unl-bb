@@ -47,45 +47,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Text search with comprehensive search across multiple fields
+    // Text search using PostgreSQL full-text search
+    let additionalWhereClause = '';
+    let additionalParams: any[] = [];
     if (searchQuery) {
-      // Split search query into words and filter out empty strings
-      const searchWords = searchQuery.split(" ").filter(word => word.length > 0);
-      
-      if (searchWords.length > 0) {
-        // Create OR conditions for each search word across multiple fields
-        const searchConditions = searchWords.map(word => ({
-          OR: [
-            {
-              title: {
-                contains: word,
-                mode: "insensitive"
-              }
-            },
-            {
-              buyerName: {
-                contains: word,
-                mode: "insensitive"
-              }
-            },
-            {
-              status: {
-                contains: word,
-                mode: "insensitive"
-              }
-            },
-            {
-              procurementMethod: {
-                contains: word,
-                mode: "insensitive"
-              }
-            }
-          ]
-        }));
-        
-        // Combine all search conditions with AND (all words must match)
-        where.AND = searchConditions;
-      }
+      additionalWhereClause = `AND "searchVector" @@ to_tsquery('english', ${additionalParams.length + 1})`;
+      additionalParams.push(searchQuery.split(' ').join(' & ')); // Convert to tsquery format
     }
 
     // Status filter
@@ -178,17 +145,108 @@ export async function GET(request: NextRequest) {
     });
     dbTracker.start();
 
-    // Use Promise.all to run count and findMany in parallel for better performance
-    const [totalCount, releases] = await Promise.all([
-      prisma.release.count({ where }),
-      prisma.release.findMany({
-        where,
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        orderBy,
-        select: { data: true },
-      })
+    // Build base query parameters
+    const baseParams = [
+      (page - 1) * pageSize,
+      pageSize
+    ];
+
+    // Build WHERE clause for filters
+    let whereClause = "WHERE 1=1";
+    const filterParams: any[] = [];
+    
+    // Date filters
+    if (dateFrom) {
+      whereClause += ` AND "releaseDate" >= ${filterParams.length + baseParams.length + 1}`;
+      filterParams.push(new Date(dateFrom));
+    }
+    if (dateTo) {
+      whereClause += ` AND "releaseDate" <= ${filterParams.length + baseParams.length + 1}`;
+      filterParams.push(new Date(dateTo + "T23:59:59.999Z"));
+    }
+    
+    // Status filter
+    if (status) {
+      whereClause += ` AND "status" ILIKE ${filterParams.length + baseParams.length + 1}`;
+      filterParams.push(`%${status}%`);
+    }
+    
+    // Procurement method filter
+    if (procurementMethod) {
+      whereClause += ` AND "procurementMethod" ILIKE ${filterParams.length + baseParams.length + 1}`;
+      filterParams.push(`%${procurementMethod}%`);
+    }
+    
+    // Buyer name filter
+    if (buyerName) {
+      whereClause += ` AND "buyerName" ILIKE ${filterParams.length + baseParams.length + 1}`;
+      filterParams.push(`%${buyerName}%`);
+    }
+    
+    // Value range filter
+    if (minValue) {
+      whereClause += ` AND "valueAmount" >= ${filterParams.length + baseParams.length + 1}`;
+      filterParams.push(parseFloat(minValue));
+    }
+    if (maxValue) {
+      whereClause += ` AND "valueAmount" <= ${filterParams.length + baseParams.length + 1}`;
+      filterParams.push(parseFloat(maxValue));
+    }
+    
+    // Currency filter
+    if (currency) {
+      whereClause += ` AND "currency" = ${filterParams.length + baseParams.length + 1}`;
+      filterParams.push(currency);
+    }
+    
+    // Industry filter
+    if (mainProcurementCategory && mainProcurementCategory !== "__all__") {
+      whereClause += ` AND "mainProcurementCategory" = ${filterParams.length + baseParams.length + 1}`;
+      filterParams.push(mainProcurementCategory);
+    }
+    
+    // Text search using PostgreSQL full-text search
+    if (searchQuery) {
+      whereClause += ` AND "searchVector" @@ to_tsquery('english', ${filterParams.length + baseParams.length + 1})`;
+      filterParams.push(searchQuery.split(' ').join(' & ')); // Convert to tsquery format
+    }
+
+    // Build ORDER BY clause
+    let orderByClause = "";
+    switch (sortBy) {
+      case "releaseDate":
+        orderByClause = `"releaseDate" ${sortOrder}`;
+        break;
+      case "valueAmount":
+        orderByClause = `"valueAmount" ${sortOrder}`;
+        break;
+      case "buyerName":
+        orderByClause = `"buyerName" ${sortOrder}`;
+        break;
+      case "title":
+        orderByClause = `"title" ${sortOrder}`;
+        break;
+      default:
+        orderByClause = `"releaseDate" DESC`;
+    }
+
+    // Combine all parameters
+    const allParams = [...baseParams, ...filterParams];
+
+    // Use raw SQL queries for better performance with full-text search
+    const [totalCountResult, releasesResult] = await Promise.all([
+      prisma.$queryRawUnsafe(
+        `SELECT COUNT(*) as count FROM "public"."Release" ${whereClause}`,
+        ...filterParams
+      ),
+      prisma.$queryRawUnsafe(
+        `SELECT "data" FROM "public"."Release" ${whereClause} ORDER BY ${orderByClause} LIMIT $2 OFFSET $1`,
+        ...allParams
+      )
     ]);
+
+    const totalCount = parseInt((totalCountResult as any)[0].count);
+    const releases = releasesResult as any[];
 
     dbTracker.end();
     dbCacheMetrics.hit(); // We're serving from database
@@ -259,21 +317,24 @@ async function populateInitialData() {
         const valueAmount = release.tender?.value?.amount || null;
         const currency = release.tender?.value?.currency || null;
         const releaseDate = release.date ? new Date(release.date) : new Date();
+        
+        // Create search vector using PostgreSQL's to_tsvector function
+        const searchVector = `${title} ${buyerName} ${status} ${procurementMethod}`;
 
-        await prisma.release.create({
-          data: {
-            ocid: release.ocid,
-            releaseDate,
-            data: release,
-            title,
-            buyerName,
-            status,
-            procurementMethod,
-            mainProcurementCategory,
-            valueAmount,
-            currency,
-          },
-        });
+        // Use raw SQL to insert with searchVector since it's Unsupported in Prisma
+        await prisma.$executeRaw`
+          INSERT INTO "public"."Release" (
+            "ocid", "releaseDate", "data", "title", "buyerName", "status", 
+            "procurementMethod", "mainProcurementCategory", "valueAmount", "currency", "searchVector"
+          ) VALUES (
+            ${release.ocid}, ${releaseDate}, ${release}, ${title}, ${buyerName}, ${status},
+            ${procurementMethod}, ${mainProcurementCategory}, ${valueAmount}, ${currency}, 
+            setweight(to_tsvector('english', ${title}), 'A') ||
+            setweight(to_tsvector('english', ${buyerName}), 'B') ||
+            setweight(to_tsvector('english', ${status}), 'C') ||
+            setweight(to_tsvector('english', ${procurementMethod}), 'C')
+          )
+        `;
       } catch (error) {
         // Skip duplicates or other errors
         console.error(`Error creating release ${release.ocid}:`, error);
@@ -316,33 +377,39 @@ async function refreshDataInBackground() {
         const valueAmount = release.tender?.value?.amount || null;
         const currency = release.tender?.value?.currency || null;
         const releaseDate = release.date ? new Date(release.date) : new Date();
+        
+        // Create search vector using PostgreSQL's to_tsvector function
+        const searchVector = `${title} ${buyerName} ${status} ${procurementMethod}`;
 
-        await prisma.release.upsert({
-          where: { ocid: release.ocid },
-          update: {
-            releaseDate,
-            data: release,
-            title,
-            buyerName,
-            status,
-            procurementMethod,
-            mainProcurementCategory,
-            valueAmount,
-            currency,
-          },
-          create: {
-            ocid: release.ocid,
-            releaseDate,
-            data: release,
-            title,
-            buyerName,
-            status,
-            procurementMethod,
-            mainProcurementCategory,
-            valueAmount,
-            currency,
-          },
-        });
+        // Use raw SQL for upsert since searchVector is Unsupported in Prisma
+        await prisma.$executeRaw`
+          INSERT INTO "public"."Release" (
+            "ocid", "releaseDate", "data", "title", "buyerName", "status", 
+            "procurementMethod", "mainProcurementCategory", "valueAmount", "currency", "searchVector"
+          ) VALUES (
+            ${release.ocid}, ${releaseDate}, ${release}, ${title}, ${buyerName}, ${status},
+            ${procurementMethod}, ${mainProcurementCategory}, ${valueAmount}, ${currency},
+            setweight(to_tsvector('english', ${title}), 'A') ||
+            setweight(to_tsvector('english', ${buyerName}), 'B') ||
+            setweight(to_tsvector('english', ${status}), 'C') ||
+            setweight(to_tsvector('english', ${procurementMethod}), 'C')
+          )
+          ON CONFLICT ("ocid") DO UPDATE SET
+            "releaseDate" = EXCLUDED."releaseDate",
+            "data" = EXCLUDED."data",
+            "title" = EXCLUDED."title",
+            "buyerName" = EXCLUDED."buyerName",
+            "status" = EXCLUDED."status",
+            "procurementMethod" = EXCLUDED."procurementMethod",
+            "mainProcurementCategory" = EXCLUDED."mainProcurementCategory",
+            "valueAmount" = EXCLUDED."valueAmount",
+            "currency" = EXCLUDED."currency",
+            "searchVector" = 
+              setweight(to_tsvector('english', EXCLUDED."title"), 'A') ||
+              setweight(to_tsvector('english', EXCLUDED."buyerName"), 'B') ||
+              setweight(to_tsvector('english', EXCLUDED."status"), 'C') ||
+              setweight(to_tsvector('english', EXCLUDED."procurementMethod"), 'C')
+        `;
       } catch (error) {
         // Continue with other releases
       }
