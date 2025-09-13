@@ -36,8 +36,11 @@ export async function POST(request: Request) {
 
   // If more data exists, trigger the next run
   if (data.links?.next) {
+    const host = request.headers.get('host');
+    const protocol = host?.includes('localhost') ? 'http' : 'https';
+    const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `${protocol}://${host}`;
     // Fire-and-forget call to the next page
-    fetch(`${process.env.VERCEL_URL}/api/admin/ingest-historical-page`, { method: 'POST' });
+    fetch(`${baseUrl}/api/admin/ingest-historical-page`, { method: 'POST' });
   } else {
     // No more pages, mark backfill as complete
     await prisma.ingestionState.update({

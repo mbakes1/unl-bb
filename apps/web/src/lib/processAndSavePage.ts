@@ -1,7 +1,5 @@
 // /apps/web/src/lib/processAndSavePage.ts
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 // This is a simplified version. In reality, this function would need to handle all the fields
 // from the OCDS API response and map them to the new relational schema.
