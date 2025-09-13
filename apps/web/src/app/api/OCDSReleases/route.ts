@@ -157,57 +157,57 @@ export async function GET(request: NextRequest) {
     
     // Date filters
     if (dateFrom) {
-      whereClause += ` AND "releaseDate" >= ${filterParams.length + baseParams.length + 1}`;
+      whereClause += ` AND "releaseDate" >= $${filterParams.length + baseParams.length + 1}`;
       filterParams.push(new Date(dateFrom));
     }
     if (dateTo) {
-      whereClause += ` AND "releaseDate" <= ${filterParams.length + baseParams.length + 1}`;
+      whereClause += ` AND "releaseDate" <= $${filterParams.length + baseParams.length + 1}`;
       filterParams.push(new Date(dateTo + "T23:59:59.999Z"));
     }
     
     // Status filter
     if (status) {
-      whereClause += ` AND "status" ILIKE ${filterParams.length + baseParams.length + 1}`;
+      whereClause += ` AND "status" ILIKE $${filterParams.length + baseParams.length + 1}`;
       filterParams.push(`%${status}%`);
     }
     
     // Procurement method filter
     if (procurementMethod) {
-      whereClause += ` AND "procurementMethod" ILIKE ${filterParams.length + baseParams.length + 1}`;
+      whereClause += ` AND "procurementMethod" ILIKE $${filterParams.length + baseParams.length + 1}`;
       filterParams.push(`%${procurementMethod}%`);
     }
     
     // Buyer name filter
     if (buyerName) {
-      whereClause += ` AND "buyerName" ILIKE ${filterParams.length + baseParams.length + 1}`;
+      whereClause += ` AND "buyerName" ILIKE $${filterParams.length + baseParams.length + 1}`;
       filterParams.push(`%${buyerName}%`);
     }
     
     // Value range filter
     if (minValue) {
-      whereClause += ` AND "valueAmount" >= ${filterParams.length + baseParams.length + 1}`;
+      whereClause += ` AND "valueAmount" >= $${filterParams.length + baseParams.length + 1}`;
       filterParams.push(parseFloat(minValue));
     }
     if (maxValue) {
-      whereClause += ` AND "valueAmount" <= ${filterParams.length + baseParams.length + 1}`;
+      whereClause += ` AND "valueAmount" <= $${filterParams.length + baseParams.length + 1}`;
       filterParams.push(parseFloat(maxValue));
     }
     
     // Currency filter
     if (currency) {
-      whereClause += ` AND "currency" = ${filterParams.length + baseParams.length + 1}`;
+      whereClause += ` AND "currency" = $${filterParams.length + baseParams.length + 1}`;
       filterParams.push(currency);
     }
     
     // Industry filter
     if (mainProcurementCategory && mainProcurementCategory !== "__all__") {
-      whereClause += ` AND "mainProcurementCategory" = ${filterParams.length + baseParams.length + 1}`;
+      whereClause += ` AND "mainProcurementCategory" = $${filterParams.length + baseParams.length + 1}`;
       filterParams.push(mainProcurementCategory);
     }
     
     // Text search using PostgreSQL full-text search
     if (searchQuery) {
-      whereClause += ` AND "searchVector" @@ to_tsquery('english', ${filterParams.length + baseParams.length + 1})`;
+      whereClause += ` AND "searchVector" @@ to_tsquery('english', $${filterParams.length + baseParams.length + 1})`;
       filterParams.push(searchQuery.split(' ').join(' & ')); // Convert to tsquery format
     }
 
@@ -237,7 +237,7 @@ export async function GET(request: NextRequest) {
     const [totalCountResult, releasesResult] = await Promise.all([
       prisma.$queryRawUnsafe(
         `SELECT COUNT(*) as count FROM "public"."Release" ${whereClause}`,
-        ...filterParams
+        ...allParams
       ),
       prisma.$queryRawUnsafe(
         `SELECT "data" FROM "public"."Release" ${whereClause} ORDER BY ${orderByClause} LIMIT $2 OFFSET $1`,

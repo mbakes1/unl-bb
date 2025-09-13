@@ -4,50 +4,61 @@ import { NextResponse } from 'next/server';
 import { processAndSavePage } from '@/lib/processAndSavePage';
 
 export async function POST(request: Request) {
-  // Add robust security check here (e.g., check for admin session)
-  
-  const state = await prisma.ingestionState.findUnique({ where: { id: 'singleton' } });
-  if (!state || state.isBackfillComplete) {
-    return NextResponse.json({ message: 'Backfill is already complete or state is not initialized.' });
-  }
+  try {
+    // Add robust security check here (e.g., check for admin session)
+    
+    const state = await prisma.ingestionState.findUnique({ where: { id: 'singleton' } });
+    if (!state || state.isBackfillComplete) {
+      return NextResponse.json({ message: 'Backfill is already complete or state is not initialized.' });
+    }
 
-  const nextPage = state.lastHistoricalPage + 1;
-  const pageSize = 5000; // Fetch large chunks as we are not in a browser
-  const dateFrom = "2023-01-01"; // Or your desired start date
+    const nextPage = state.lastHistoricalPage + 1;
+    const pageSize = 5000; // Fetch large chunks as we are not in a browser
+    const dateFrom = "2023-01-01"; // Or your desired start date
 
-  const response = await fetch(`https://ocds-api.etenders.gov.za/api/OCDSReleases?PageNumber=${nextPage}&PageSize=${pageSize}&dateFrom=${dateFrom}`);
-  
-  if (!response.ok) { 
-    console.error(`Failed to fetch page ${nextPage}: ${response.statusText}`);
-    return NextResponse.json({ message: `Failed to fetch page ${nextPage}` }, { status: 500 });
-  }
-  
-  const data = await response.json();
-  const releases = data.releases || [];
+    const response = await fetch(`https://ocds-api.etenders.gov.za/api/OCDSReleases?PageNumber=${nextPage}&PageSize=${pageSize}&dateFrom=${dateFrom}`);
+    
+    if (!response.ok) { 
+      console.error(`Failed to fetch page ${nextPage}: ${response.statusText}`);
+      return NextResponse.json({ message: `Failed to fetch page ${nextPage}` }, { status: 500 });
+    }
+    
+    let data;
+    try {
+      data = await response.json();
+    } catch (error) {
+      console.error(`Failed to parse JSON for page ${nextPage}:`, error);
+      return NextResponse.json({ message: `Failed to parse JSON for page ${nextPage}` }, { status: 500 });
+    }
+    const releases = data.releases || [];
 
-  // Process and save all data points for this page into the new relational schema
-  // This will be a complex function mapping the JSON to your Prisma models
-  await processAndSavePage(releases);
+    // Process and save all data points for this page into the new relational schema
+    // This will be a complex function mapping the JSON to your Prisma models
+    await processAndSavePage(releases);
 
-  await prisma.ingestionState.update({
-    where: { id: 'singleton' },
-    data: { lastHistoricalPage: nextPage },
-  });
-
-  // If more data exists, trigger the next run
-  if (data.links?.next) {
-    const host = request.headers.get('host');
-    const protocol = host?.includes('localhost') ? 'http' : 'https';
-    const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `${protocol}://${host}`;
-    // Fire-and-forget call to the next page
-    fetch(`${baseUrl}/api/admin/ingest-historical-page`, { method: 'POST' });
-  } else {
-    // No more pages, mark backfill as complete
     await prisma.ingestionState.update({
-        where: { id: 'singleton' },
-        data: { isBackfillComplete: true },
+      where: { id: 'singleton' },
+      data: { lastHistoricalPage: nextPage },
     });
+
+    // If more data exists, trigger the next run
+    if (data.links?.next) {
+      const host = request.headers.get('host');
+      const protocol = host?.includes('localhost') ? 'http' : 'https';
+      const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `${protocol}://${host}`;
+      // Fire-and-forget call to the next page
+      fetch(`${baseUrl}/api/admin/ingest-historical-page`, { method: 'POST' });
+    } else {
+      // No more pages, mark backfill as complete
+      await prisma.ingestionState.update({
+          where: { id: 'singleton' },
+          data: { isBackfillComplete: true },
+      });
+    }
+    
+    return NextResponse.json({ message: `Successfully ingested page ${nextPage}. Triggering next page.` });
+  } catch (error) {
+    console.error('[INGESTION_ERROR]', error);
+    return NextResponse.json({ message: 'An unexpected error occurred during ingestion.' }, { status: 500 });
   }
-  
-  return NextResponse.json({ message: `Successfully ingested page ${nextPage}. Triggering next page.` });
 }

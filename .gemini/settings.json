@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "neon": {
+      "command": "path/to/neon-mcp",
+      "args": [
+        "arg1",
+        "arg2"
+      ],
+      "env": {
+        "API_KEY": "napi_gvnopox7b7dewcebr4t4sykaibuw06f3z6jr2xjqvbqnv839e4d8i2720bra98hw"
+      },
+      "timeout": 30000,
+      "trust": true
+    }
+  }
+}
