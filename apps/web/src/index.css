@@ -1,6 +1,5 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import url("https://fonts.googleapis.com/css2?family=Amethysta:wght@400&display=swap");
 
 :root {
   font-size: 15px;
@@ -37,7 +36,7 @@
   --sidebar-border: oklch(0.9401 0 0);
   --sidebar-ring: oklch(0 0 0);
   --font-sans: DM Sans, ui-sans-serif, sans-serif, system-ui;
-  --font-serif: Amethysta, ui-serif, serif;
+  --font-serif: ui-serif, serif;
   --font-mono: Geist Mono, ui-monospace, monospace;
   --radius: 0.8rem;
   --shadow-2xs: 0px 2px 3px 0px hsl(0 0% 0% / 0.08);
@@ -91,7 +90,7 @@
   --sidebar-border: oklch(0.3289 0.0092 268.3843);
   --sidebar-ring: oklch(0.6132 0.2294 291.7437);
   --font-sans: DM Sans, ui-sans-serif, sans-serif, system-ui;
-  --font-serif: Amethysta, ui-serif, serif;
+  --font-serif: ui-serif, serif;
   --font-mono: Geist Mono, ui-monospace, monospace;
   --radius: 0.8rem;
   --shadow-2xs: 0px 2px 3px 0px hsl(0 0% 0% / 0.08);
