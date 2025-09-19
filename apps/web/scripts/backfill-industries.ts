@@ -8,20 +8,11 @@ async function backfillIndustries() {
 
   try {
     // Get all releases that don't have a mainProcurementCategory or where it's empty
-    // Note: We're using 'any' here because the Prisma types are based on the old schema
-    const releases = await prisma.release.findMany({
-      where: {
-        OR: [
-          { mainProcurementCategory: null as any },
-          { mainProcurementCategory: "" as any }
-        ]
-      } as any,
-      select: {
-        ocid: true,
-        // title and data fields no longer exist in the new schema
-        // We'll need to get this data from the related Tender model
-      }
-    });
+    const releases: any[] = await prisma.$queryRaw`
+      SELECT "ocid", "title", "mainProcurementCategory"
+      FROM "Release"
+      WHERE "mainProcurementCategory" IS NULL OR "mainProcurementCategory" = ''
+    `;
 
     console.log(`📊 Found ${releases.length} releases to process...`);
 
@@ -31,22 +22,15 @@ async function backfillIndustries() {
     for (const release of releases) {
       try {
         // Extract industry from title
-        // Since we no longer have the title directly in the Release model,
-        // we need to get it from the related Tender model
-        const tender = await prisma.tender.findUnique({
-          where: { releaseId: release.ocid as any }
-        });
+        const industry = extractIndustry(release.title || "");
         
-        const industry = extractIndustry(tender?.title || "");
-        
-        if (industry && tender) {
-          // Update the tender with the new industry category
-          await prisma.tender.update({
-            where: { releaseId: release.ocid as any },
-            data: {
-              mainProcurementCategory: industry
-            }
-          });
+        if (industry) {
+          // Update the release with the new industry category
+          await prisma.$executeRaw`
+            UPDATE "Release"
+            SET "mainProcurementCategory" = ${industry}
+            WHERE "ocid" = ${release.ocid}
+          `;
           updatedCount++;
         }
 

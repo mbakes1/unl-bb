@@ -7,155 +7,26 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model IngestionState {
-  id                 String   @id
-  isBackfillComplete Boolean  @default(false)
-  lastHistoricalPage Int      @default(0)
-  lastDailySync      DateTime @default(dbgenerated("'1970-01-01 00:00:00'::timestamp without time zone"))
-  lastModified       DateTime @updatedAt
-}
-
 model Release {
-  id             Int        @id @default(autoincrement())
-  ocid           String     @unique
-  releaseDate    DateTime
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
-  initiationType String?
-  language       String?
-  releaseId      String     @default("")
-  tags           String[]
-  awards         Award[]
-  buyer          Buyer?
-  contracts      Contract[]
-  parties        Party[]
-  planning       Planning?
-  tender         Tender?
-  searchVector   Unsupported("tsvector")?
+  id                      Int      @id @default(autoincrement())
+  ocid                    String   @unique
+  releaseDate             DateTime
+  data                    Json
+  title                   String?
+  buyerName               String?
+  status                  String?
+  procurementMethod       String?
+  mainProcurementCategory String?
+  valueAmount             Float?
+  currency                String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
   @@index([releaseDate])
-  @@index([searchVector], type: Gin)
-}
-
-model Tender {
-  id                       String       @id @default(cuid())
-  releaseId                Int          @unique
-  tenderId                 String
-  title                    String?
-  status                   String?
-  description              String?
-  mainProcurementCategory  String?
-  procurementMethod        String?
-  procurementMethodDetails String?
-  procuringEntityJson      Json?        @map("procuringEntity")
-  tenderPeriodJson         Json?        @map("tenderPeriod")
-  valueJson                Json?        @map("value")
-  documents                Document[]
-  release                  Release      @relation(fields: [releaseId], references: [id])
-  items                    TenderItem[]
-  tenderers                Tenderer[]
-
-  @@index([title])
-  @@index([status])
+  @@index([buyerName])
+  @@index([createdAt])
   @@index([mainProcurementCategory])
-}
-
-model Planning {
-  id         String  @id @default(cuid())
-  releaseId  Int     @unique
-  rationale  String?
-  budgetJson Json?   @map("budget")
-  release    Release @relation(fields: [releaseId], references: [id])
-}
-
-model Buyer {
-  id        String  @id @default(cuid())
-  releaseId Int     @unique
-  buyerId   String
-  name      String?
-  release   Release @relation(fields: [releaseId], references: [id])
-
-  @@index([name])
-}
-
-model Party {
-  id          String   @id @default(cuid())
-  releaseId   Int
-  partyId     String
-  name        String?
-  roles       String[]
-  detailsJson Json?    @map("details")
-  release     Release  @relation(fields: [releaseId], references: [id])
-
-  @@unique([partyId, releaseId])
-  @@index([name])
-}
-
-model Award {
-  id        String     @id @default(cuid())
-  releaseId Int
-  awardId   String
-  title     String?
-  status    String?
-  awardDate DateTime?
-  valueJson Json?      @map("value")
-  release   Release    @relation(fields: [releaseId], references: [id])
-  suppliers Supplier[]
-
-  @@unique([awardId, releaseId])
-}
-
-model Supplier {
-  id         String @id @default(cuid())
-  awardId    String
-  supplierId String
-  name       String
-  award      Award  @relation(fields: [awardId], references: [id])
-
-  @@unique([supplierId, awardId])
-}
-
-model Contract {
-  id         String  @id @default(cuid())
-  releaseId  Int
-  contractId String
-  awardID    String?
-  title      String?
-  status     String?
-  periodJson Json?   @map("period")
-  valueJson  Json?   @map("value")
-  release    Release @relation(fields: [releaseId], references: [id])
-
-  @@unique([contractId, releaseId])
-}
-
-model Document {
-  id            String    @id @default(cuid())
-  tenderId      String
-  documentId    String
-  documentType  String?
-  title         String?
-  url           String?
-  format        String?
-  language      String?
-  datePublished DateTime?
-  tender        Tender    @relation(fields: [tenderId], references: [id])
-}
-
-model TenderItem {
-  id          String  @id @default(cuid())
-  tenderId    String
-  itemId      String
-  description String?
-  quantity    Float?
-  unitName    String?
-  tender      Tender  @relation(fields: [tenderId], references: [id])
-}
-
-model Tenderer {
-  id         String @id @default(cuid())
-  tenderId   String
-  tendererId String
-  name       String
-  tender     Tender @relation(fields: [tenderId], references: [id])
+  @@index([procurementMethod])
+  @@index([status])
+  @@index([valueAmount])
 }

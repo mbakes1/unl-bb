@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 // Smart caching endpoint that checks data freshness and updates if needed
 export async function GET(request: NextRequest) {
@@ -7,13 +8,15 @@ export async function GET(request: NextRequest) {
 
   try {
     // Check when we last updated data
-    const latestRelease = await prisma.release.findFirst({
-      orderBy: { createdAt: "desc" },
-      select: { createdAt: true },
-    });
+    const latestReleaseResult: any[] = await prisma.$queryRaw`
+      SELECT "createdAt" FROM "Release" 
+      ORDER BY "createdAt" DESC 
+      LIMIT 1
+    `;
+    const latestRelease = latestReleaseResult[0];
 
     const now = new Date();
-    const lastUpdate = latestRelease?.createdAt || new Date(0);
+    const lastUpdate = latestRelease?.createdAt ? new Date(latestRelease.createdAt) : new Date(0);
     const hoursSinceUpdate =
       (now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60);
 
@@ -43,51 +46,39 @@ export async function GET(request: NextRequest) {
     const searchQuery = searchParams.get("search");
 
     // Build where clause
-    const where: any = {};
-
-    if (dateFrom || dateTo) {
-      where.releaseDate = {};
-      if (dateFrom) {
-        where.releaseDate.gte = new Date(dateFrom);
-      }
-      if (dateTo) {
-        where.releaseDate.lte = new Date(dateTo + "T23:59:59.999Z");
-      }
+    let whereClause = "WHERE 1=1";
+    const params: any[] = [];
+    
+    if (dateFrom) {
+      whereClause += ` AND "releaseDate" >= $${params.length + 1}`;
+      params.push(new Date(dateFrom));
     }
-
+    
+    if (dateTo) {
+      whereClause += ` AND "releaseDate" <= $${params.length + 1}`;
+      params.push(new Date(dateTo + "T23:59:59.999Z"));
+    }
+    
     if (searchQuery) {
-      where.OR = [
-        { title: { contains: searchQuery, mode: "insensitive" } },
-        { buyerName: { contains: searchQuery, mode: "insensitive" } },
-      ];
+      whereClause += ` AND ("title" ILIKE $${params.length + 1} OR "buyerName" ILIKE $${params.length + 2})`;
+      params.push(`%${searchQuery}%`);
+      params.push(`%${searchQuery}%`);
     }
 
-    const totalCount = await prisma.release.count({ where });
-    const releases = await prisma.release.findMany({
-      where,
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      orderBy: { releaseDate: "desc" },
-      select: {
-        id: true,
-        ocid: true,
-        releaseId: true,
-        releaseDate: true,
-        initiationType: true,
-        language: true,
-        tags: true,
-        tender: true,
-        planning: true,
-        buyer: true,
-        parties: true,
-        awards: true,
-        contracts: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    const totalCountResult: any[] = await prisma.$queryRaw`
+      SELECT COUNT(*) as count FROM "Release" ${Prisma.raw(whereClause)}
+    `;
+    const totalCount = parseInt(totalCountResult[0].count);
 
-    const releaseData = releases;
+    const releases: any[] = await prisma.$queryRaw`
+      SELECT * FROM "Release" 
+      ${Prisma.raw(whereClause)} 
+      ORDER BY "releaseDate" DESC 
+      LIMIT ${pageSize} 
+      OFFSET ${(page - 1) * pageSize}
+    `;
+
+    const releaseData = releases.map(release => release.data);
     const totalPages = Math.ceil(totalCount / pageSize);
     const hasNext = page < totalPages;
 
@@ -152,42 +143,33 @@ async function updateDataInBackground() {
         const buyerName =
           release.buyer?.name || release.tender?.procuringEntity?.name || "";
         const status = release.tender?.status || "";
+        const procurementMethod = release.tender?.procurementMethod || "";
+        const mainProcurementCategory = release.tender?.mainProcurementCategory || "";
+        const valueAmount = release.tender?.value?.amount || null;
+        const currency = release.tender?.value?.currency || null;
         const releaseDate = release.date ? new Date(release.date) : new Date();
 
-        await prisma.release.upsert({
-          where: { ocid: release.ocid },
-          update: {
-            releaseDate,
-            tender: {
-              update: {
-                title,
-                status,
-              },
-            },
-            buyer: {
-              update: {
-                name: buyerName,
-              },
-            },
-          },
-          create: {
-            ocid: release.ocid,
-            releaseDate,
-            tender: {
-              create: {
-                tenderId: release.tender?.id || release.ocid,
-                title,
-                status,
-              },
-            },
-            buyer: {
-              create: {
-                buyerId: release.buyer?.id || release.ocid,
-                name: buyerName,
-              },
-            },
-          },
-        });
+        // Use raw SQL for upsert since Prisma doesn't support native upsert with complex expressions
+        await prisma.$executeRaw`
+          INSERT INTO "Release" (
+            "ocid", "releaseDate", "data", "title", "buyerName", "status", 
+            "procurementMethod", "mainProcurementCategory", "valueAmount", "currency", "createdAt", "updatedAt"
+          ) VALUES (
+            ${release.ocid}, ${releaseDate}, ${release}, ${title}, ${buyerName}, ${status},
+            ${procurementMethod}, ${mainProcurementCategory}, ${valueAmount}, ${currency}, NOW(), NOW()
+          )
+          ON CONFLICT ("ocid") DO UPDATE SET
+            "releaseDate" = EXCLUDED."releaseDate",
+            "data" = EXCLUDED."data",
+            "title" = EXCLUDED."title",
+            "buyerName" = EXCLUDED."buyerName",
+            "status" = EXCLUDED."status",
+            "procurementMethod" = EXCLUDED."procurementMethod",
+            "mainProcurementCategory" = EXCLUDED."mainProcurementCategory",
+            "valueAmount" = EXCLUDED."valueAmount",
+            "currency" = EXCLUDED."currency",
+            "updatedAt" = NOW()
+        `;
       } catch (error) {
         console.error(`Error updating release ${release.ocid}:`, error);
       }

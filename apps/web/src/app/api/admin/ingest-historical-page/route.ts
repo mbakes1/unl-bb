@@ -7,7 +7,12 @@ export async function POST(request: Request) {
   try {
     // Add robust security check here (e.g., check for admin session)
     
-    const state = await prisma.ingestionState.findUnique({ where: { id: 'singleton' } });
+    // Get the ingestion state using raw SQL
+    const stateResult: any[] = await prisma.$queryRaw`
+      SELECT * FROM "IngestionState" WHERE "id" = 'singleton'
+    `;
+    const state = stateResult[0];
+    
     if (!state || state.isBackfillComplete) {
       return NextResponse.json({ message: 'Backfill is already complete or state is not initialized.' });
     }
@@ -36,10 +41,12 @@ export async function POST(request: Request) {
     // This will be a complex function mapping the JSON to your Prisma models
     await processAndSavePage(releases);
 
-    await prisma.ingestionState.update({
-      where: { id: 'singleton' },
-      data: { lastHistoricalPage: nextPage },
-    });
+    // Update the ingestion state using raw SQL
+    await prisma.$executeRaw`
+      UPDATE "IngestionState" 
+      SET "lastHistoricalPage" = ${nextPage}
+      WHERE "id" = 'singleton'
+    `;
 
     // If more data exists, trigger the next run
     if (data.links?.next) {
@@ -50,10 +57,11 @@ export async function POST(request: Request) {
       fetch(`${baseUrl}/api/admin/ingest-historical-page`, { method: 'POST' });
     } else {
       // No more pages, mark backfill as complete
-      await prisma.ingestionState.update({
-          where: { id: 'singleton' },
-          data: { isBackfillComplete: true },
-      });
+      await prisma.$executeRaw`
+        UPDATE "IngestionState"
+        SET "isBackfillComplete" = true
+        WHERE "id" = 'singleton'
+      `;
     }
     
     return NextResponse.json({ message: `Successfully ingested page ${nextPage}. Triggering next page.` });

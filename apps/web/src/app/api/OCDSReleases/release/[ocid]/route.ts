@@ -16,16 +16,11 @@ export async function GET(
       performanceMonitor.trackDatabaseQuery("findReleaseByOcid");
     dbTracker.start();
 
-    // Note: We're using 'any' here because the Prisma types are based on the old schema
-    const release: any = await prisma.release.findUnique({
-      where: { ocid: decodedOcid },
-      select: {
-        // data field no longer exists in the new schema
-        // We'll need to get this data from the related models
-        updatedAt: true, // Include for freshness check
-        createdAt: true,
-      } as any,
-    });
+    // Get the release data from the current schema
+    const releaseResult: any[] = await prisma.$queryRaw`
+      SELECT * FROM "Release" WHERE "ocid" = ${decodedOcid}
+    `;
+    const release = releaseResult[0];
 
     dbTracker.end();
 
@@ -41,7 +36,7 @@ export async function GET(
 
     // Check data freshness and trigger background update if needed
     const hoursSinceUpdate =
-      (Date.now() - release.updatedAt.getTime()) / (1000 * 60 * 60);
+      (Date.now() - new Date(release.updatedAt).getTime()) / (1000 * 60 * 60);
 
     // Trigger background update if data is older than 6 hours (details change less frequently)
     if (hoursSinceUpdate > 6) {
@@ -52,69 +47,8 @@ export async function GET(
       refreshDetailInBackground(decodedOcid).catch(console.error);
     }
 
-    // Since we no longer have the data directly in the Release model,
-    // we need to construct it from the related models
-    const tender = await prisma.tender.findUnique({
-      where: { releaseId: release.id }
-    });
-    
-    const buyer = await prisma.buyer.findUnique({
-      where: { releaseId: release.id }
-    });
-    
-    const parties = await prisma.party.findMany({
-      where: { releaseId: release.id }
-    });
-    
-    const awards = await prisma.award.findMany({
-      where: { releaseId: release.id },
-      include: { suppliers: true }
-    });
-    
-    const contracts = await prisma.contract.findMany({
-      where: { releaseId: release.id }
-    });
-    
-    // Construct the data object from the related models
-    const data = {
-      ocid: decodedOcid,
-      id: release.id,
-      date: release.releaseDate,
-      // Add other fields from related models as needed
-      tender: tender ? {
-        id: tender.tenderId,
-        title: tender.title,
-        status: tender.status,
-        description: tender.description,
-        mainProcurementCategory: tender.mainProcurementCategory,
-        procurementMethod: tender.procurementMethod,
-        procurementMethodDetails: tender.procurementMethodDetails,
-        value: tender.valueJson,
-        tenderPeriod: tender.tenderPeriodJson,
-        procuringEntity: tender.procuringEntityJson,
-      } : undefined,
-      buyer: buyer ? {
-        id: buyer.buyerId,
-        name: buyer.name
-      } : undefined,
-      parties,
-      awards: awards.map(award => ({
-        id: award.awardId,
-        title: award.title,
-        status: award.status,
-        date: award.awardDate,
-        value: award.valueJson,
-        suppliers: award.suppliers
-      })),
-      contracts: contracts.map(contract => ({
-        id: contract.contractId,
-        awardID: contract.awardID,
-        title: contract.title,
-        status: contract.status,
-        period: contract.periodJson,
-        value: contract.valueJson
-      }))
-    };
+    // Return the data directly from the Release table
+    const data = release.data;
 
     return NextResponse.json(data, {
       headers: {
@@ -125,7 +59,7 @@ export async function GET(
         // Aggressive caching for individual releases since they change less frequently
         "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=7200", // 1hr cache, 2hr stale
         "X-Data-Source": "database",
-        "X-Last-Updated": release.updatedAt.toISOString(),
+        "X-Last-Updated": new Date(release.updatedAt).toISOString(),
       },
     });
   } catch (error) {

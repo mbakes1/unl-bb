@@ -16,20 +16,15 @@ export async function POST(request: NextRequest) {
     const limitedOcids = ocids.slice(0, 10);
 
     // Check which releases are missing or stale in our database
-    const existingReleases = await prisma.release.findMany({
-      where: {
-        ocid: { in: limitedOcids },
-      },
-      select: {
-        ocid: true,
-        updatedAt: true,
-      },
-    });
+    const existingReleases: any[] = await prisma.$queryRaw`
+      SELECT "ocid", "updatedAt" FROM "Release" 
+      WHERE "ocid" = ANY(${limitedOcids})
+    `;
 
     const existingOcids = new Set(existingReleases.map((r) => r.ocid));
     const staleThreshold = new Date(Date.now() - 6 * 60 * 60 * 1000); // 6 hours
     const staleOcids = existingReleases
-      .filter((r) => r.updatedAt < staleThreshold)
+      .filter((r) => new Date(r.updatedAt) < staleThreshold)
       .map((r) => r.ocid);
 
     const missingOcids = limitedOcids.filter(
@@ -68,44 +63,35 @@ export async function POST(request: NextRequest) {
           releaseData.tender?.procuringEntity?.name ||
           "";
         const status = releaseData.tender?.status || "";
+        const procurementMethod = releaseData.tender?.procurementMethod || "";
+        const mainProcurementCategory = releaseData.tender?.mainProcurementCategory || "";
+        const valueAmount = releaseData.tender?.value?.amount || null;
+        const currency = releaseData.tender?.value?.currency || null;
         const releaseDate = releaseData.date
           ? new Date(releaseData.date)
           : new Date();
 
-        await prisma.release.upsert({
-          where: { ocid },
-          update: {
-            releaseDate,
-            tender: {
-              update: {
-                title,
-                status,
-              },
-            },
-            buyer: {
-              update: {
-                name: buyerName,
-              },
-            },
-          },
-          create: {
-            ocid,
-            releaseDate,
-            tender: {
-              create: {
-                tenderId: releaseData.tender?.id || ocid,
-                title,
-                status,
-              },
-            },
-            buyer: {
-              create: {
-                buyerId: releaseData.buyer?.id || ocid,
-                name: buyerName,
-              },
-            },
-          },
-        });
+        // Use raw SQL for upsert since Prisma doesn't support native upsert with complex expressions
+        await prisma.$executeRaw`
+          INSERT INTO "Release" (
+            "ocid", "releaseDate", "data", "title", "buyerName", "status", 
+            "procurementMethod", "mainProcurementCategory", "valueAmount", "currency", "createdAt", "updatedAt"
+          ) VALUES (
+            ${ocid}, ${releaseDate}, ${releaseData}, ${title}, ${buyerName}, ${status},
+            ${procurementMethod}, ${mainProcurementCategory}, ${valueAmount}, ${currency}, NOW(), NOW()
+          )
+          ON CONFLICT ("ocid") DO UPDATE SET
+            "releaseDate" = EXCLUDED."releaseDate",
+            "data" = EXCLUDED."data",
+            "title" = EXCLUDED."title",
+            "buyerName" = EXCLUDED."buyerName",
+            "status" = EXCLUDED."status",
+            "procurementMethod" = EXCLUDED."procurementMethod",
+            "mainProcurementCategory" = EXCLUDED."mainProcurementCategory",
+            "valueAmount" = EXCLUDED."valueAmount",
+            "currency" = EXCLUDED."currency",
+            "updatedAt" = NOW()
+        `;
 
         return ocid;
       } catch (error) {

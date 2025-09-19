@@ -13,7 +13,11 @@ export async function GET(request: Request) {
     console.log("Starting data ingestion...");
 
     // Check if backfill is complete
-    const state = await prisma.ingestionState.findUnique({ where: { id: 'singleton' } });
+    const stateResult: any[] = await prisma.$queryRaw`
+      SELECT * FROM "IngestionState" WHERE "id" = 'singleton'
+    `;
+    const state = stateResult[0];
+    
     if (!state || !state.isBackfillComplete) {
       console.log("Backfill is not complete yet. Skipping daily sync.");
       return NextResponse.json({
@@ -26,7 +30,7 @@ export async function GET(request: Request) {
     // Fetch data from the external OCDS API
     // Fetch data from the external OCDS API with required date parameters
     const dateTo = new Date().toISOString().split("T")[0]; // Today
-    const dateFrom = state.lastDailySync.toISOString().split("T")[0]; // Last sync date
+    const dateFrom = new Date(state.lastDailySync).toISOString().split("T")[0]; // Last sync date
 
     // We need to paginate through the results
     let pageNumber = 1;
@@ -71,10 +75,11 @@ export async function GET(request: Request) {
     }
 
     // Update the last daily sync time
-    await prisma.ingestionState.update({
-      where: { id: 'singleton' },
-      data: { lastDailySync: new Date() },
-    });
+    await prisma.$executeRaw`
+      UPDATE "IngestionState"
+      SET "lastDailySync" = ${new Date()}
+      WHERE "id" = 'singleton'
+    `;
 
     console.log(`Successfully upserted ${totalUpserted} releases`);
 

@@ -1,169 +1,120 @@
 // /apps/web/src/lib/processAndSavePage.ts
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
-// This is a simplified version. In reality, this function would need to handle all the fields
-// from the OCDS API response and map them to the new relational schema.
+// This function processes and saves a page of releases using bulk operations for better performance
 export async function processAndSavePage(releases: any[]) {
+  console.log(`Processing ${releases.length} releases in bulk...`);
+  
+  // Process releases in batches to avoid memory issues and long-running transactions
+  const batchSize = 100;
+  let totalProcessed = 0;
+  
+  for (let i = 0; i < releases.length; i += batchSize) {
+    const batch = releases.slice(i, i + batchSize);
+    console.log(`Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(releases.length/batchSize)} (${batch.length} releases)`);
+    
+    try {
+      // Process the batch using bulk operations
+      await processBatch(batch);
+      totalProcessed += batch.length;
+      console.log(`Successfully processed batch. Total so far: ${totalProcessed}/${releases.length}`);
+    } catch (error) {
+      console.error(`Error processing batch starting at index ${i}:`, error);
+      // Continue with the next batch instead of stopping completely
+    }
+  }
+  
+  console.log(`Finished processing ${totalProcessed} releases`);
+}
+
+async function processBatch(releases: any[]) {
+  // Extract data for bulk insert/update
+  const releaseData: any[] = [];
+  
   for (const release of releases) {
     try {
-      // Upsert the main release
-      const releaseRecord = await prisma.release.upsert({
-        where: { ocid: release.ocid },
-        update: {
-          releaseId: release.id,
-          releaseDate: new Date(release.date),
-          initiationType: release.initiationType,
-          language: release.language,
-          tags: release.tag,
-          updatedAt: new Date(),
-        },
-        create: {
-          ocid: release.ocid,
-          releaseId: release.id,
-          releaseDate: new Date(release.date),
-          initiationType: release.initiationType,
-          language: release.language,
-          tags: release.tag,
-        },
+      const title = release.tender?.title || "";
+      const buyerName = release.buyer?.name || release.tender?.procuringEntity?.name || "";
+      const status = release.tender?.status || "";
+      const procurementMethod = release.tender?.procurementMethod || "";
+      const mainProcurementCategory = release.tender?.mainProcurementCategory || "";
+      const valueAmount = release.tender?.value?.amount || null;
+      const currency = release.tender?.value?.currency || null;
+      const releaseDate = release.date ? new Date(release.date) : new Date();
+      
+      releaseData.push({
+        ocid: release.ocid,
+        releaseDate: releaseDate,
+        data: release,
+        title: title,
+        buyerName: buyerName,
+        status: status,
+        procurementMethod: procurementMethod,
+        mainProcurementCategory: mainProcurementCategory,
+        valueAmount: valueAmount,
+        currency: currency,
       });
-
-      // Process tender
-      if (release.tender) {
-        await prisma.tender.upsert({
-          where: { releaseId: releaseRecord.id },
-          update: {
-            tenderId: release.tender.id,
-            title: release.tender.title,
-            status: release.tender.status,
-            description: release.tender.description,
-            mainProcurementCategory: release.tender.mainProcurementCategory,
-            procurementMethod: release.tender.procurementMethod,
-            procurementMethodDetails: release.tender.procurementMethodDetails,
-            valueJson: release.tender.value,
-            tenderPeriodJson: release.tender.tenderPeriod,
-            procuringEntityJson: release.tender.procuringEntity,
-          },
-          create: {
-            releaseId: releaseRecord.id,
-            tenderId: release.tender.id,
-            title: release.tender.title,
-            status: release.tender.status,
-            description: release.tender.description,
-            mainProcurementCategory: release.tender.mainProcurementCategory,
-            procurementMethod: release.tender.procurementMethod,
-            procurementMethodDetails: release.tender.procurementMethodDetails,
-            valueJson: release.tender.value,
-            tenderPeriodJson: release.tender.tenderPeriod,
-            procuringEntityJson: release.tender.procuringEntity,
-          },
-        });
-      }
-
-      // Process buyer
-      if (release.buyer) {
-        await prisma.buyer.upsert({
-          where: { releaseId: releaseRecord.id },
-          update: {
-            buyerId: release.buyer.id,
-            name: release.buyer.name,
-          },
-          create: {
-            releaseId: releaseRecord.id,
-            buyerId: release.buyer.id,
-            name: release.buyer.name,
-          },
-        });
-      }
-
-      // Process parties
-      if (release.parties) {
-        for (const party of release.parties) {
-          await prisma.party.upsert({
-            where: { partyId_releaseId: { partyId: party.id, releaseId: releaseRecord.id } },
-            update: {
-              name: party.name,
-              roles: party.roles,
-              detailsJson: party.details,
-            },
-            create: {
-              releaseId: releaseRecord.id,
-              partyId: party.id,
-              name: party.name,
-              roles: party.roles,
-              detailsJson: party.details,
-            },
-          });
-        }
-      }
-
-      // Process awards
-      if (release.awards) {
-        for (const award of release.awards) {
-          const awardRecord = await prisma.award.upsert({
-            where: { awardId_releaseId: { awardId: award.id, releaseId: releaseRecord.id } },
-            update: {
-              title: award.title,
-              status: award.status,
-              awardDate: award.date ? new Date(award.date) : null,
-              valueJson: award.value,
-            },
-            create: {
-              releaseId: releaseRecord.id,
-              awardId: award.id,
-              title: award.title,
-              status: award.status,
-              awardDate: award.date ? new Date(award.date) : null,
-              valueJson: award.value,
-            },
-          });
-
-          // Process suppliers
-          if (award.suppliers) {
-            for (const supplier of award.suppliers) {
-              await prisma.supplier.upsert({
-                where: { supplierId_awardId: { supplierId: supplier.id, awardId: awardRecord.id } },
-                update: {
-                  name: supplier.name,
-                },
-                create: {
-                  awardId: awardRecord.id,
-                  supplierId: supplier.id,
-                  name: supplier.name,
-                },
-              });
-            }
-          }
-        }
-      }
-
-      // Process contracts
-      if (release.contracts) {
-        for (const contract of release.contracts) {
-          await prisma.contract.upsert({
-            where: { contractId_releaseId: { contractId: contract.id, releaseId: releaseRecord.id } },
-            update: {
-              awardID: contract.awardID,
-              title: contract.title,
-              status: contract.status,
-              periodJson: contract.period,
-              valueJson: contract.value,
-            },
-            create: {
-              releaseId: releaseRecord.id,
-              contractId: contract.id,
-              awardID: contract.awardID,
-              title: contract.title,
-              status: contract.status,
-              periodJson: contract.period,
-              valueJson: contract.value,
-            },
-          });
-        }
-      }
-
-      console.log(`Processed release ${release.ocid}`);
     } catch (error) {
-      console.error(`Error processing release ${release.ocid}:`, error);
+      console.error(`Error preparing data for release ${release.ocid}:`, error);
+    }
+  }
+  
+  // Perform bulk upsert using a single raw SQL statement for all releases in the batch
+  if (releaseData.length > 0) {
+    try {
+      // Use a single raw SQL statement for bulk upsert with proper parameterization
+      const values = releaseData.map(release => 
+        Prisma.sql`(${release.ocid}, ${release.releaseDate}, ${release.data}, ${release.title}, ${release.buyerName}, ${release.status}, ${release.procurementMethod}, ${release.mainProcurementCategory}, ${release.valueAmount}, ${release.currency}, NOW(), NOW())`
+      );
+      
+      await prisma.$executeRaw`
+        INSERT INTO "Release" (
+          "ocid", "releaseDate", "data", "title", "buyerName", "status", 
+          "procurementMethod", "mainProcurementCategory", "valueAmount", "currency", "createdAt", "updatedAt"
+        ) VALUES ${Prisma.join(values, ', ')}
+        ON CONFLICT ("ocid") DO UPDATE SET
+          "releaseDate" = EXCLUDED."releaseDate",
+          "data" = EXCLUDED."data",
+          "title" = EXCLUDED."title",
+          "buyerName" = EXCLUDED."buyerName",
+          "status" = EXCLUDED."status",
+          "procurementMethod" = EXCLUDED."procurementMethod",
+          "mainProcurementCategory" = EXCLUDED."mainProcurementCategory",
+          "valueAmount" = EXCLUDED."valueAmount",
+          "currency" = EXCLUDED."currency",
+          "updatedAt" = NOW()
+      `;
+    } catch (error) {
+      console.error(`Error bulk upserting releases:`, error);
+      
+      // Fallback to individual upserts if bulk upsert fails
+      for (const release of releaseData) {
+        try {
+          await prisma.$executeRaw`
+            INSERT INTO "Release" (
+              "ocid", "releaseDate", "data", "title", "buyerName", "status", 
+              "procurementMethod", "mainProcurementCategory", "valueAmount", "currency", "createdAt", "updatedAt"
+            ) VALUES (
+              ${release.ocid}, ${release.releaseDate}, ${release.data}, ${release.title}, ${release.buyerName}, ${release.status},
+              ${release.procurementMethod}, ${release.mainProcurementCategory}, ${release.valueAmount}, ${release.currency}, NOW(), NOW()
+            )
+            ON CONFLICT ("ocid") DO UPDATE SET
+              "releaseDate" = EXCLUDED."releaseDate",
+              "data" = EXCLUDED."data",
+              "title" = EXCLUDED."title",
+              "buyerName" = EXCLUDED."buyerName",
+              "status" = EXCLUDED."status",
+              "procurementMethod" = EXCLUDED."procurementMethod",
+              "mainProcurementCategory" = EXCLUDED."mainProcurementCategory",
+              "valueAmount" = EXCLUDED."valueAmount",
+              "currency" = EXCLUDED."currency",
+              "updatedAt" = NOW()
+          `;
+        } catch (error) {
+          console.error(`Error upserting release ${release.ocid}:`, error);
+        }
+      }
     }
   }
 }

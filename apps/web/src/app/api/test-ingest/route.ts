@@ -32,42 +32,33 @@ export async function GET() {
         const buyerName =
           release.buyer?.name || release.tender?.procuringEntity?.name || "";
         const status = release.tender?.status || "";
+        const procurementMethod = release.tender?.procurementMethod || "";
+        const mainProcurementCategory = release.tender?.mainProcurementCategory || "";
+        const valueAmount = release.tender?.value?.amount || null;
+        const currency = release.tender?.value?.currency || null;
         const releaseDate = release.date ? new Date(release.date) : new Date();
 
-        await prisma.release.upsert({
-          where: { ocid: release.ocid },
-          update: {
-            releaseDate,
-            tender: {
-              update: {
-                title,
-                status,
-              },
-            },
-            buyer: {
-              update: {
-                name: buyerName,
-              },
-            },
-          },
-          create: {
-            ocid: release.ocid,
-            releaseDate,
-            tender: {
-              create: {
-                tenderId: release.tender?.id || release.ocid,
-                title,
-                status,
-              },
-            },
-            buyer: {
-              create: {
-                buyerId: release.buyer?.id || release.ocid,
-                name: buyerName,
-              },
-            },
-          },
-        });
+        // Use raw SQL for upsert since Prisma doesn't support native upsert with complex expressions
+        await prisma.$executeRaw`
+          INSERT INTO "Release" (
+            "ocid", "releaseDate", "data", "title", "buyerName", "status", 
+            "procurementMethod", "mainProcurementCategory", "valueAmount", "currency", "createdAt", "updatedAt"
+          ) VALUES (
+            ${release.ocid}, ${releaseDate}, ${release}, ${title}, ${buyerName}, ${status},
+            ${procurementMethod}, ${mainProcurementCategory}, ${valueAmount}, ${currency}, NOW(), NOW()
+          )
+          ON CONFLICT ("ocid") DO UPDATE SET
+            "releaseDate" = EXCLUDED."releaseDate",
+            "data" = EXCLUDED."data",
+            "title" = EXCLUDED."title",
+            "buyerName" = EXCLUDED."buyerName",
+            "status" = EXCLUDED."status",
+            "procurementMethod" = EXCLUDED."procurementMethod",
+            "mainProcurementCategory" = EXCLUDED."mainProcurementCategory",
+            "valueAmount" = EXCLUDED."valueAmount",
+            "currency" = EXCLUDED."currency",
+            "updatedAt" = NOW()
+        `;
 
         upsertedCount++;
       } catch (error) {
@@ -76,7 +67,10 @@ export async function GET() {
     }
 
     // Get total count in database
-    const totalCount = await prisma.release.count();
+    const totalCountResult: any[] = await prisma.$queryRaw`
+      SELECT COUNT(*) as count FROM "Release"
+    `;
+    const totalCount = parseInt(totalCountResult[0].count);
 
     return NextResponse.json({
       success: true,
