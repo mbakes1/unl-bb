@@ -1,6 +1,7 @@
 // /apps/web/src/lib/processAndSavePage.ts
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
+import { extractIndustry } from '@/lib/data-enrichment';
 
 // This function processes and saves a page of releases using bulk operations for better performance
 export async function processAndSavePage(releases: any[]) {
@@ -38,10 +39,13 @@ async function processBatch(releases: any[]) {
       const buyerName = release.buyer?.name || release.tender?.procuringEntity?.name || "";
       const status = release.tender?.status || "";
       const procurementMethod = release.tender?.procurementMethod || "";
-      const mainProcurementCategory = release.tender?.mainProcurementCategory || "";
       const valueAmount = release.tender?.value?.amount || null;
       const currency = release.tender?.value?.currency || null;
       const releaseDate = release.date ? new Date(release.date) : new Date();
+      
+      // Extract industry category using data enrichment logic
+      // This replaces the need for a separate backfill script
+      const mainProcurementCategory = extractIndustry(title) || release.tender?.mainProcurementCategory || "";
       
       releaseData.push({
         ocid: release.ocid,
