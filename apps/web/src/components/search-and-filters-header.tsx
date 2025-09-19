@@ -35,6 +35,7 @@ interface SearchAndFiltersHeaderProps {
   industryFilter: string;
   onIndustryFilterChange: (value: string) => void;
   onApplyFilters: () => void;
+  onResetFilters: () => void;
 }
 
 export const SearchAndFiltersHeader = ({
@@ -50,6 +51,7 @@ export const SearchAndFiltersHeader = ({
   industryFilter,
   onIndustryFilterChange,
   onApplyFilters,
+  onResetFilters,
 }: SearchAndFiltersHeaderProps) => {
   // Local state for form inputs
   const [localSearchQuery, setLocalSearchQuery] = React.useState(searchQuery);
@@ -124,9 +126,13 @@ export const SearchAndFiltersHeader = ({
     setDateToObj(today);
     onDateFromChange("2024-01-01");
     onDateToChange(today.toISOString().split("T")[0]);
+    setLocalSearchQuery("");
     onSearchChange("");
+    setLocalPageSize(50);
     onPageSizeChange(50);
+    setLocalIndustryFilter("");
     onIndustryFilterChange("");
+    onResetFilters();
   };
 
   const FiltersContent = () => (

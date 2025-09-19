@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useCallback } from "react";
+import { Suspense, useMemo, useCallback, useReducer } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { RefreshCw, Clock } from "lucide-react";
@@ -12,27 +12,93 @@ import { useReleases } from "@/lib/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
 
+// Define the filter state type
+interface FilterState {
+  searchQuery: string;
+  dateFrom: string;
+  dateTo: string;
+  pageSize: number;
+  industryFilter: string;
+  currentPage: number;
+}
+
+// Define action types for the reducer
+type FilterAction =
+  | { type: "SET_SEARCH_QUERY"; payload: string }
+  | { type: "SET_DATE_FROM"; payload: string }
+  | { type: "SET_DATE_TO"; payload: string }
+  | { type: "SET_PAGE_SIZE"; payload: number }
+  | { type: "SET_INDUSTRY_FILTER"; payload: string }
+  | { type: "SET_CURRENT_PAGE"; payload: number }
+  | { type: "RESET_FILTERS" }
+  | { type: "APPLY_FILTERS" };
+
+// Initial filter state
+const initialFilterState: FilterState = {
+  searchQuery: "",
+  dateFrom: "2024-01-01",
+  dateTo: new Date().toISOString().split("T")[0],
+  pageSize: 50,
+  industryFilter: "",
+  currentPage: 1,
+};
+
+// Filter reducer function
+function filterReducer(state: FilterState, action: FilterAction): FilterState {
+  switch (action.type) {
+    case "SET_SEARCH_QUERY":
+      return { ...state, searchQuery: action.payload, currentPage: 1 };
+    case "SET_DATE_FROM":
+      return { ...state, dateFrom: action.payload, currentPage: 1 };
+    case "SET_DATE_TO":
+      return { ...state, dateTo: action.payload, currentPage: 1 };
+    case "SET_PAGE_SIZE":
+      return { ...state, pageSize: action.payload, currentPage: 1 };
+    case "SET_INDUSTRY_FILTER":
+      return { ...state, industryFilter: action.payload, currentPage: 1 };
+    case "SET_CURRENT_PAGE":
+      return { ...state, currentPage: action.payload };
+    case "RESET_FILTERS":
+      return {
+        ...initialFilterState,
+        dateTo: new Date().toISOString().split("T")[0],
+      };
+    case "APPLY_FILTERS":
+      // For apply filters, we just keep the current state but ensure page is reset
+      return { ...state, currentPage: 1 };
+    default:
+      return state;
+  }
+}
+
 function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
 
   // Initialize state from URL parameters
-  const currentPage = parseInt(searchParams.get("page") || "1", 10);
-  const dateFrom = searchParams.get("dateFrom") || "2024-01-01";
-  const dateTo =
-    searchParams.get("dateTo") || new Date().toISOString().split("T")[0];
-  const pageSize = parseInt(searchParams.get("pageSize") || "50", 10);
-  const searchQuery = searchParams.get("search") || "";
-  const industryFilter = searchParams.get("industry") || "";
+  const getInitialState = (): FilterState => {
+    return {
+      searchQuery: searchParams.get("search") || "",
+      dateFrom: searchParams.get("dateFrom") || "2024-01-01",
+      dateTo:
+        searchParams.get("dateTo") || new Date().toISOString().split("T")[0],
+      pageSize: parseInt(searchParams.get("pageSize") || "50", 10),
+      industryFilter: searchParams.get("industry") || "",
+      currentPage: parseInt(searchParams.get("page") || "1", 10),
+    };
+  };
+
+  // Use reducer for filter state management
+  const [filterState, dispatch] = useReducer(filterReducer, getInitialState());
 
   const { data, isLoading, error, refetch, isFetching } = useReleases({
-    pageNumber: currentPage,
-    pageSize,
-    dateFrom,
-    dateTo,
-    searchQuery,
-    industryFilter,
+    pageNumber: filterState.currentPage,
+    pageSize: filterState.pageSize,
+    dateFrom: filterState.dateFrom,
+    dateTo: filterState.dateTo,
+    searchQuery: filterState.searchQuery,
+    industryFilter: filterState.industryFilter,
   });
 
   const releases = (data as any)?.releases || [];
@@ -180,42 +246,56 @@ function HomeContent() {
     [searchParams, router]
   );
 
+  // Centralized handler for all filter changes
+  const handleFilterChange = useCallback(
+    (action: FilterAction) => {
+      dispatch(action);
+      
+      // Update URL based on the action type
+      switch (action.type) {
+        case "SET_SEARCH_QUERY":
+          updateUrlParams({ search: action.payload, page: 1 });
+          break;
+        case "SET_DATE_FROM":
+          updateUrlParams({ dateFrom: action.payload, page: 1 });
+          break;
+        case "SET_DATE_TO":
+          updateUrlParams({ dateTo: action.payload, page: 1 });
+          break;
+        case "SET_PAGE_SIZE":
+          updateUrlParams({ pageSize: action.payload, page: 1 });
+          break;
+        case "SET_INDUSTRY_FILTER":
+          updateUrlParams({ industry: action.payload, page: 1 });
+          break;
+        case "SET_CURRENT_PAGE":
+          updateUrlParams({ page: action.payload });
+          break;
+        case "RESET_FILTERS":
+          updateUrlParams({
+            search: "",
+            dateFrom: "2024-01-01",
+            dateTo: new Date().toISOString().split("T")[0],
+            pageSize: 50,
+            industry: "",
+            page: 1,
+          });
+          break;
+        case "APPLY_FILTERS":
+          updateUrlParams({ page: 1 });
+          break;
+      }
+    },
+    [updateUrlParams]
+  );
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    updateUrlParams({ page: 1, filterOpen: false }); // Reset to first page when searching
+    handleFilterChange({ type: "APPLY_FILTERS" });
   };
-
-  
 
   const handlePageChange = (newPage: number) => {
-    updateUrlParams({ page: newPage });
-  };
-
-  const handleDateFromChange = (newDateFrom: string) => {
-    updateUrlParams({ dateFrom: newDateFrom, page: 1 });
-  };
-
-  const handleDateToChange = (newDateTo: string) => {
-    updateUrlParams({ dateTo: newDateTo, page: 1 });
-  };
-
-  const handlePageSizeChange = (newPageSize: number) => {
-    updateUrlParams({ pageSize: newPageSize, page: 1 });
-  };
-
-  const handleSearchQueryChange = (newSearchQuery: string) => {
-    updateUrlParams({ search: newSearchQuery, page: 1 });
-  };
-
-  const handleIndustryFilterChange = (newIndustryFilter: string) => {
-    updateUrlParams({ industry: newIndustryFilter, page: 1 });
-  };
-
-  
-
-  const handleApplyFilters = () => {
-    // This will trigger a refetch with current filter values
-    updateUrlParams({ page: 1 });
+    handleFilterChange({ type: "SET_CURRENT_PAGE", payload: newPage });
   };
 
   // Prefetch detail page data when user hovers over a release link
@@ -266,18 +346,29 @@ function HomeContent() {
   return (
     <div className="min-h-screen bg-background">
       <SearchAndFiltersHeader
-        searchQuery={searchQuery}
-        onSearchChange={handleSearchQueryChange}
+        searchQuery={filterState.searchQuery}
+        onSearchChange={(value) =>
+          handleFilterChange({ type: "SET_SEARCH_QUERY", payload: value })
+        }
         onSearchSubmit={handleSearch}
-        dateFrom={dateFrom}
-        onDateFromChange={handleDateFromChange}
-        dateTo={dateTo}
-        onDateToChange={handleDateToChange}
-        pageSize={pageSize}
-        onPageSizeChange={handlePageSizeChange}
-        industryFilter={industryFilter}
-        onIndustryFilterChange={handleIndustryFilterChange}
-        onApplyFilters={handleApplyFilters}
+        dateFrom={filterState.dateFrom}
+        onDateFromChange={(value) =>
+          handleFilterChange({ type: "SET_DATE_FROM", payload: value })
+        }
+        dateTo={filterState.dateTo}
+        onDateToChange={(value) =>
+          handleFilterChange({ type: "SET_DATE_TO", payload: value })
+        }
+        pageSize={filterState.pageSize}
+        onPageSizeChange={(value) =>
+          handleFilterChange({ type: "SET_PAGE_SIZE", payload: value })
+        }
+        industryFilter={filterState.industryFilter}
+        onIndustryFilterChange={(value) =>
+          handleFilterChange({ type: "SET_INDUSTRY_FILTER", payload: value })
+        }
+        onApplyFilters={() => handleFilterChange({ type: "APPLY_FILTERS" })}
+        onResetFilters={() => handleFilterChange({ type: "RESET_FILTERS" })}
       />
 
       <div className="lg:ml-96 px-4 sm:px-6 lg:px-8 py-6">
@@ -307,7 +398,7 @@ function HomeContent() {
 
         <div className="mb-4 flex justify-between items-center text-sm text-muted-foreground">
           <span>
-            Showing {releases.length} results on page {currentPage}
+            Showing {releases.length} results on page {filterState.currentPage}
             {hasNextPage && " (more pages available)"}
           </span>
           <div className="flex items-center gap-4">
@@ -323,7 +414,7 @@ function HomeContent() {
               />
               Refresh
             </Button>
-            <span>Page: {currentPage}</span>
+            <span>Page: {filterState.currentPage}</span>
           </div>
         </div>
 
@@ -387,14 +478,16 @@ function HomeContent() {
 
         <div className="flex justify-center gap-2">
           <Button
-            onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
-            disabled={currentPage <= 1}
+            onClick={() =>
+              handlePageChange(Math.max(1, filterState.currentPage - 1))
+            }
+            disabled={filterState.currentPage <= 1}
             variant="outline"
           >
             Previous
           </Button>
           <Button
-            onClick={() => handlePageChange(currentPage + 1)}
+            onClick={() => handlePageChange(filterState.currentPage + 1)}
             disabled={!hasNextPage}
             variant="outline"
           >
