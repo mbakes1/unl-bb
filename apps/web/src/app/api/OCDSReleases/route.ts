@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { performanceMonitor, dbCacheMetrics } from "@/lib/performance-monitor";
+import { Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -34,72 +35,6 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get("sortBy") || "releaseDate";
     const sortOrder = searchParams.get("sortOrder") || "desc";
 
-    // Build where clause for filtering
-    const where: any = {};
-
-    if (dateFrom || dateTo) {
-      where.releaseDate = {};
-      if (dateFrom) {
-        where.releaseDate.gte = new Date(dateFrom);
-      }
-      if (dateTo) {
-        where.releaseDate.lte = new Date(dateTo + "T23:59:59.999Z");
-      }
-    }
-
-    // Text search using PostgreSQL full-text search
-    let additionalWhereClause = '';
-    let additionalParams: any[] = [];
-    if (searchQuery) {
-      additionalWhereClause = `AND "searchVector" @@ to_tsquery('english', ${additionalParams.length + 1})`;
-      additionalParams.push(searchQuery.split(' ').join(' & ')); // Convert to tsquery format
-    }
-
-    // Status filter
-    if (status) {
-      where.status = {
-        contains: status,
-        mode: "insensitive"
-      };
-    }
-
-    // Procurement method filter
-    if (procurementMethod) {
-      where.procurementMethod = {
-        contains: procurementMethod,
-        mode: "insensitive"
-      };
-    }
-
-    // Buyer name filter
-    if (buyerName) {
-      where.buyerName = {
-        contains: buyerName,
-        mode: "insensitive"
-      };
-    }
-
-    // Value range filter
-    if (minValue || maxValue) {
-      where.valueAmount = {};
-      if (minValue) {
-        where.valueAmount.gte = parseFloat(minValue);
-      }
-      if (maxValue) {
-        where.valueAmount.lte = parseFloat(maxValue);
-      }
-    }
-
-    // Currency filter
-    if (currency) {
-      where.currency = currency;
-    }
-
-    // Industry filter - handle "__all__" value as no filter
-    if (mainProcurementCategory && mainProcurementCategory !== "__all__") {
-      where.mainProcurementCategory = mainProcurementCategory;
-    }
-
     // Check data freshness and trigger background update if needed
     const latestRelease = await prisma.release.findFirst({
       orderBy: { createdAt: "desc" },
@@ -118,130 +53,93 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Build orderBy clause
-    let orderBy: any = { releaseDate: "desc" };
-    if (sortBy) {
-      switch (sortBy) {
-        case "releaseDate":
-          orderBy = { releaseDate: sortOrder };
-          break;
-        case "valueAmount":
-          orderBy = { valueAmount: sortOrder };
-          break;
-        case "buyerName":
-          orderBy = { buyerName: sortOrder };
-          break;
-        case "title":
-          orderBy = { title: sortOrder };
-          break;
-        default:
-          orderBy = { releaseDate: "desc" };
-      }
-    }
-
     const dbTracker = performanceMonitor.trackDatabaseQuery("findReleases", {
       page,
       pageSize,
     });
     dbTracker.start();
 
-    // Build base query parameters
-    const baseParams = [
-      (page - 1) * pageSize,
-      pageSize
-    ];
-
-    // Build WHERE clause for filters
-    let whereClause = "WHERE 1=1";
-    const filterParams: any[] = [];
+    // Build conditions for filters
+    const conditions = [];
+    const params = [];
     
     // Date filters
     if (dateFrom) {
-      whereClause += ` AND "releaseDate" >= $${filterParams.length + baseParams.length + 1}`;
-      filterParams.push(new Date(dateFrom));
+      conditions.push(Prisma.sql`"releaseDate" >= ${new Date(dateFrom)}`);
     }
     if (dateTo) {
-      whereClause += ` AND "releaseDate" <= $${filterParams.length + baseParams.length + 1}`;
-      filterParams.push(new Date(dateTo + "T23:59:59.999Z"));
+      conditions.push(Prisma.sql`"releaseDate" <= ${new Date(dateTo + "T23:59:59.999Z")}`);
     }
     
     // Status filter
     if (status) {
-      whereClause += ` AND "status" ILIKE $${filterParams.length + baseParams.length + 1}`;
-      filterParams.push(`%${status}%`);
+      conditions.push(Prisma.sql`"status" ILIKE ${`%${status}%`}`);
     }
     
     // Procurement method filter
     if (procurementMethod) {
-      whereClause += ` AND "procurementMethod" ILIKE $${filterParams.length + baseParams.length + 1}`;
-      filterParams.push(`%${procurementMethod}%`);
+      conditions.push(Prisma.sql`"procurementMethod" ILIKE ${`%${procurementMethod}%`}`);
     }
     
     // Buyer name filter
     if (buyerName) {
-      whereClause += ` AND "buyerName" ILIKE $${filterParams.length + baseParams.length + 1}`;
-      filterParams.push(`%${buyerName}%`);
+      conditions.push(Prisma.sql`"buyerName" ILIKE ${`%${buyerName}%`}`);
     }
     
     // Value range filter
     if (minValue) {
-      whereClause += ` AND "valueAmount" >= $${filterParams.length + baseParams.length + 1}`;
-      filterParams.push(parseFloat(minValue));
+      conditions.push(Prisma.sql`"valueAmount" >= ${parseFloat(minValue)}`);
     }
     if (maxValue) {
-      whereClause += ` AND "valueAmount" <= $${filterParams.length + baseParams.length + 1}`;
-      filterParams.push(parseFloat(maxValue));
+      conditions.push(Prisma.sql`"valueAmount" <= ${parseFloat(maxValue)}`);
     }
     
     // Currency filter
     if (currency) {
-      whereClause += ` AND "currency" = $${filterParams.length + baseParams.length + 1}`;
-      filterParams.push(currency);
+      conditions.push(Prisma.sql`"currency" = ${currency}`);
     }
     
     // Industry filter
     if (mainProcurementCategory && mainProcurementCategory !== "__all__") {
-      whereClause += ` AND "mainProcurementCategory" = $${filterParams.length + baseParams.length + 1}`;
-      filterParams.push(mainProcurementCategory);
+      conditions.push(Prisma.sql`"mainProcurementCategory" = ${mainProcurementCategory}`);
     }
     
     // Text search using PostgreSQL full-text search
     if (searchQuery) {
-      whereClause += ` AND "searchVector" @@ to_tsquery('english', $${filterParams.length + baseParams.length + 1})`;
-      filterParams.push(searchQuery.split(' ').join(' & ')); // Convert to tsquery format
+      conditions.push(Prisma.sql`"searchVector" @@ to_tsquery('english', ${searchQuery.split(' ').join(' & ')})`);
     }
+
+    // Build WHERE clause
+    const whereClause = conditions.length 
+      ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`
+      : Prisma.empty;
 
     // Build ORDER BY clause
-    let orderByClause = "";
+    let orderByClause;
     switch (sortBy) {
       case "releaseDate":
-        orderByClause = `"releaseDate" ${sortOrder}`;
+        orderByClause = Prisma.sql`"releaseDate" ${Prisma.raw(sortOrder)}`;
         break;
       case "valueAmount":
-        orderByClause = `"valueAmount" ${sortOrder}`;
+        orderByClause = Prisma.sql`"valueAmount" ${Prisma.raw(sortOrder)}`;
         break;
       case "buyerName":
-        orderByClause = `"buyerName" ${sortOrder}`;
+        orderByClause = Prisma.sql`"buyerName" ${Prisma.raw(sortOrder)}`;
         break;
       case "title":
-        orderByClause = `"title" ${sortOrder}`;
+        orderByClause = Prisma.sql`"title" ${Prisma.raw(sortOrder)}`;
         break;
       default:
-        orderByClause = `"releaseDate" DESC`;
+        orderByClause = Prisma.sql`"releaseDate" DESC`;
     }
-
-    // Combine all parameters
-    const allParams = [...baseParams, ...filterParams];
 
     // Use raw SQL queries for better performance with full-text search
     const [totalCountResult, releasesResult] = await Promise.all([
-      prisma.$queryRawUnsafe(
-        `SELECT COUNT(*) as count FROM "public"."Release" ${whereClause}`,
-        ...allParams
+      prisma.$queryRaw(
+        Prisma.sql`SELECT COUNT(*) as count FROM "public"."Release" ${whereClause}`
       ),
-      prisma.$queryRawUnsafe(
-        `SELECT "data" FROM "public"."Release" ${whereClause} ORDER BY ${orderByClause} LIMIT $2 OFFSET $1`,
-        ...allParams
+      prisma.$queryRaw(
+        Prisma.sql`SELECT "data" FROM "public"."Release" ${whereClause} ORDER BY ${orderByClause} LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`
       )
     ]);
 

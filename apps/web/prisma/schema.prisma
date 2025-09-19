@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,63 +7,53 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Manages the state of our ingestion pipeline
 model IngestionState {
-  id                      String   @id
-  isBackfillComplete      Boolean  @default(false)
-  lastHistoricalPage      Int      @default(0)
-  lastDailySync           DateTime @default("1970-01-01T00:00:00Z")
-  lastModified            DateTime @updatedAt
+  id                 String   @id
+  isBackfillComplete Boolean  @default(false)
+  lastHistoricalPage Int      @default(0)
+  lastDailySync      DateTime @default(dbgenerated("'1970-01-01 00:00:00'::timestamp without time zone"))
+  lastModified       DateTime @updatedAt
 }
 
-// Central model for each OCDS release
 model Release {
-  id             Int       @id @default(autoincrement())
-  ocid           String    @unique
-  releaseId      String    @default("") // Adding a default value to handle existing data
+  id             Int        @id @default(autoincrement())
+  ocid           String     @unique
   releaseDate    DateTime
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
   initiationType String?
   language       String?
+  releaseId      String     @default("")
   tags           String[]
-
-  // One-to-one relations
-  tender         Tender?
-  planning       Planning?
-  buyer          Buyer?
-
-  // One-to-many relations
-  parties        Party[]
   awards         Award[]
+  buyer          Buyer?
   contracts      Contract[]
-
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  parties        Party[]
+  planning       Planning?
+  tender         Tender?
+  searchVector   Unsupported("tsvector")?
 
   @@index([releaseDate])
+  @@index([searchVector], type: Gin)
 }
 
 model Tender {
-  id                        String    @id @default(cuid())
-  releaseId                 Int       @unique
-  release                   Release   @relation(fields: [releaseId], references: [id])
-  
-  tenderId                  String
-  title                     String?
-  status                    String?
-  description               String?
-  mainProcurementCategory   String?
-  procurementMethod         String?
-  procurementMethodDetails  String?
-  
-  // Storing complex but less-queried data as JSONB
-  valueJson                 Json?     @map("value") // Tender value
-  tenderPeriodJson          Json?     @map("tenderPeriod")
-  procuringEntityJson       Json?     @map("procuringEntity")
-  
-  // One-to-many relations
-  documents                 Document[]
-  items                     TenderItem[]
-  tenderers                 Tenderer[]
+  id                       String       @id @default(cuid())
+  releaseId                Int          @unique
+  tenderId                 String
+  title                    String?
+  status                   String?
+  description              String?
+  mainProcurementCategory  String?
+  procurementMethod        String?
+  procurementMethodDetails String?
+  procuringEntityJson      Json?        @map("procuringEntity")
+  tenderPeriodJson         Json?        @map("tenderPeriod")
+  valueJson                Json?        @map("value")
+  documents                Document[]
+  release                  Release      @relation(fields: [releaseId], references: [id])
+  items                    TenderItem[]
+  tenderers                Tenderer[]
 
   @@index([title])
   @@index([status])
@@ -77,104 +61,101 @@ model Tender {
 }
 
 model Planning {
-  id          String   @id @default(cuid())
-  releaseId   Int      @unique
-  release     Release  @relation(fields: [releaseId], references: [id])
-  rationale   String?
-  budgetJson  Json?    @map("budget")
+  id         String  @id @default(cuid())
+  releaseId  Int     @unique
+  rationale  String?
+  budgetJson Json?   @map("budget")
+  release    Release @relation(fields: [releaseId], references: [id])
 }
 
 model Buyer {
   id        String  @id @default(cuid())
   releaseId Int     @unique
-  release   Release @relation(fields: [releaseId], references: [id])
   buyerId   String
   name      String?
+  release   Release @relation(fields: [releaseId], references: [id])
 
   @@index([name])
 }
 
 model Party {
-  id         String   @id @default(cuid())
-  releaseId  Int
-  release    Release  @relation(fields: [releaseId], references: [id])
-  partyId    String
-  name       String?
-  roles      String[]
-  
-  // Store the rest as JSONB for full data capture without excessive columns
-  detailsJson Json? @map("details")
+  id          String   @id @default(cuid())
+  releaseId   Int
+  partyId     String
+  name        String?
+  roles       String[]
+  detailsJson Json?    @map("details")
+  release     Release  @relation(fields: [releaseId], references: [id])
 
-  @@index([name])
   @@unique([partyId, releaseId])
+  @@index([name])
 }
 
 model Award {
-  id         String   @id @default(cuid())
-  releaseId  Int
-  release    Release  @relation(fields: [releaseId], references: [id])
-  awardId    String
-  title      String?
-  status     String?
-  awardDate  DateTime?
-  valueJson  Json?    @map("value")
-  
-  suppliers  Supplier[]
+  id        String     @id @default(cuid())
+  releaseId Int
+  awardId   String
+  title     String?
+  status    String?
+  awardDate DateTime?
+  valueJson Json?      @map("value")
+  release   Release    @relation(fields: [releaseId], references: [id])
+  suppliers Supplier[]
 
   @@unique([awardId, releaseId])
 }
 
 model Supplier {
-  id       String @id @default(cuid())
-  awardId  String
-  award    Award  @relation(fields: [awardId], references: [id])
+  id         String @id @default(cuid())
+  awardId    String
   supplierId String
-  name     String
+  name       String
+  award      Award  @relation(fields: [awardId], references: [id])
 
   @@unique([supplierId, awardId])
 }
 
 model Contract {
-  id          String   @id @default(cuid())
-  releaseId   Int
-  release     Release  @relation(fields: [releaseId], references: [id])
-  contractId  String
-  awardID     String?
-  title       String?
-  status      String?
-  periodJson  Json?    @map("period")
-  valueJson   Json?    @map("value")
+  id         String  @id @default(cuid())
+  releaseId  Int
+  contractId String
+  awardID    String?
+  title      String?
+  status     String?
+  periodJson Json?   @map("period")
+  valueJson  Json?   @map("value")
+  release    Release @relation(fields: [releaseId], references: [id])
 
   @@unique([contractId, releaseId])
 }
 
 model Document {
-  id           String   @id @default(cuid())
-  tenderId     String
-  tender       Tender   @relation(fields: [tenderId], references: [id])
-  documentId   String
-  documentType String?
-  title        String?
-  url          String?
-  format       String?
-  language     String?
+  id            String    @id @default(cuid())
+  tenderId      String
+  documentId    String
+  documentType  String?
+  title         String?
+  url           String?
+  format        String?
+  language      String?
   datePublished DateTime?
+  tender        Tender    @relation(fields: [tenderId], references: [id])
 }
 
 model TenderItem {
-  id            String @id @default(cuid())
-  tenderId      String
-  tender        Tender @relation(fields: [tenderId], references: [id])
-  itemId        String
-  description   String?
-  quantity      Float?
-  unitName      String?
+  id          String  @id @default(cuid())
+  tenderId    String
+  itemId      String
+  description String?
+  quantity    Float?
+  unitName    String?
+  tender      Tender  @relation(fields: [tenderId], references: [id])
 }
 
 model Tenderer {
   id         String @id @default(cuid())
   tenderId   String
-  tender     Tender @relation(fields: [tenderId], references: [id])
   tendererId String
   name       String
+  tender     Tender @relation(fields: [tenderId], references: [id])
 }
