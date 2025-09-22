@@ -1,67 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "./query-keys";
+import type { ReleaseResponse, ReleasesResponse, ReleaseDetailResponse } from "./types/api";
 
-export interface Release {
-  ocid: string;
-  date: string;
-  tag: string[];
-  tender?: {
-    id: string;
-    title: string;
-    description: string;
-    status: string;
-    procurementMethodDetails: string;
-    procurementMethod: string;
-    mainProcurementCategory: string;
-    tenderPeriod?: {
-      startDate: string;
-      endDate: string;
-    };
-    procuringEntity?: {
-      name: string;
-      id: string;
-    };
-    value?: {
-      amount: number;
-      currency: string;
-    };
-  };
-  buyer?: {
-    name: string;
-  };
-}
+export interface Release extends ReleaseResponse {}
 
-export interface DetailedRelease {
-  ocid: string;
-  date: string;
-  language: string;
-  tag: string[];
-  tender: {
-    id: string;
-    title: string;
-    description: string;
-    procurementMethodDetails: string;
-    procurementMethod: string;
-    mainProcurementCategory: string;
-    additionalProcurementCategories: string[];
-    tenderPeriod?: {
-      startDate: string;
-      endDate: string;
-    };
-    procuringEntity?: {
-      name: string;
-      id: string;
-    };
-    value?: {
-      amount: number;
-      currency: string;
-    };
-    documents: Document[];
-  };
-  buyer?: {
-    name: string;
-  };
-}
+export interface DetailedRelease extends ReleaseDetailResponse {}
 
 export interface Document {
   id: string;
@@ -71,13 +14,6 @@ export interface Document {
   datePublished: string;
   dateModified: string;
   url: string;
-}
-
-interface ReleasesResponse {
-  releases: Release[];
-  links?: {
-    next?: string;
-  };
 }
 
 interface ReleasesParams {

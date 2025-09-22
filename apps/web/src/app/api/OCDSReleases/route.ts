@@ -61,14 +61,16 @@ export async function GET(request: NextRequest) {
 
     // Build conditions for filters
     const conditions = [];
-    const params = [];
     
-    // Date filters
+    // Date filters with proper date handling
     if (dateFrom) {
       conditions.push(Prisma.sql`"releaseDate" >= ${new Date(dateFrom)}`);
     }
     if (dateTo) {
-      conditions.push(Prisma.sql`"releaseDate" <= ${new Date(dateTo + "T23:59:59.999Z")}`);
+      // Create end of day date for inclusive filtering
+      const endDate = new Date(dateTo);
+      endDate.setHours(23, 59, 59, 999);
+      conditions.push(Prisma.sql`"releaseDate" <= ${endDate}`);
     }
     
     // Status filter
@@ -104,9 +106,19 @@ export async function GET(request: NextRequest) {
       conditions.push(Prisma.sql`"mainProcurementCategory" = ${mainProcurementCategory}`);
     }
     
-    // Text search using PostgreSQL full-text search
+    // Text search using PostgreSQL full-text search with proper query sanitization
     if (searchQuery) {
-      conditions.push(Prisma.sql`"searchVector" @@ to_tsquery('english', ${searchQuery.split(' ').join(' & ')})`);
+      // Sanitize the search query by removing special characters and extra spaces
+      const sanitizedQuery = searchQuery
+        .replace(/[^\w\s]/g, ' ') // Remove special characters
+        .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+        .trim();
+      
+      if (sanitizedQuery) {
+        // Convert to tsquery format
+        const tsQuery = sanitizedQuery.split(' ').join(' & ');
+        conditions.push(Prisma.sql`"searchVector" @@ to_tsquery('english', ${tsQuery})`);
+      }
     }
 
     // Build WHERE clause

@@ -18,7 +18,24 @@ export async function GET(request: Request) {
     `;
     const state = stateResult[0];
     
-    if (!state || !state.isBackfillComplete) {
+    // Handle case where state doesn't exist yet
+    if (!state) {
+      console.log("Ingestion state not found. This might be the first run.");
+      // Create initial state
+      await prisma.$executeRaw`
+        INSERT INTO "IngestionState" ("id", "isBackfillComplete", "lastDailySync")
+        VALUES ('singleton', false, ${new Date()})
+        ON CONFLICT ("id") DO NOTHING
+      `;
+      
+      return NextResponse.json({
+        success: true,
+        message: "Initialized ingestion state. Run backfill script to populate data.",
+        timestamp: new Date().toISOString(),
+      });
+    }
+    
+    if (!state.isBackfillComplete) {
       console.log("Backfill is not complete yet. Skipping daily sync.");
       return NextResponse.json({
         success: true,
@@ -27,7 +44,6 @@ export async function GET(request: Request) {
       });
     }
 
-    // Fetch data from the external OCDS API
     // Fetch data from the external OCDS API with required date parameters
     const dateTo = new Date().toISOString().split("T")[0]; // Today
     const dateFrom = new Date(state.lastDailySync).toISOString().split("T")[0]; // Last sync date
@@ -52,26 +68,17 @@ export async function GET(request: Request) {
       console.log(`Fetched ${releases.length} releases from external API (page ${pageNumber})`);
 
       // Process and save all data points for this page into the new relational schema
-      await processAndSavePage(releases);
-      totalUpserted += releases.length;
+      if (releases.length > 0) {
+        await processAndSavePage(releases);
+        totalUpserted += releases.length;
+      }
 
       // Check if there are more pages
       hasMorePages = data.links?.next !== undefined;
       pageNumber++;
 
-      // If more data exists, trigger the next run
-      if (hasMorePages) {
-        // Fire-and-forget call to the next page
-        fetch(`${process.env.VERCEL_URL}/api/ingest?page=${pageNumber}&dateFrom=${dateFrom}&dateTo=${dateTo}`, { 
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${process.env.CRON_SECRET}`
-          }
-        });
-        // For now, we'll break the loop and let the chained call handle the rest
-        // In a more robust implementation, you might want to handle this differently
-        break;
-      }
+      // Process one page at a time to avoid timeouts
+      break;
     }
 
     // Update the last daily sync time

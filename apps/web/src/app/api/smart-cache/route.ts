@@ -55,8 +55,11 @@ export async function GET(request: NextRequest) {
     }
     
     if (dateTo) {
-      whereClause += ` AND "releaseDate" <= $${params.length + 1}`;
-      params.push(new Date(dateTo + "T23:59:59.999Z"));
+      // Create end of day date for inclusive filtering
+      const endDate = new Date(dateTo);
+      endDate.setHours(23, 59, 59, 999);
+      whereClause += ` AND "releaseDate" <= ${params.length + 1}`;
+      params.push(endDate);
     }
     
     if (searchQuery) {

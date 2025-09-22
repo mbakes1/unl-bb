@@ -7,7 +7,8 @@ export async function GET(
   request: NextRequest,
   context: { params: Promise<{ ocid: string }> }
 ) {
-  const { ocid } = await context.params;
+  const params = await context.params;
+  const { ocid } = params;
   const decodedOcid = decodeURIComponent(ocid);
 
   try {
