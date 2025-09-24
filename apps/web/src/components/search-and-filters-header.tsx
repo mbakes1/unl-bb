@@ -34,6 +34,8 @@ interface SearchAndFiltersHeaderProps {
   onPageSizeChange: (value: number) => void;
   industryFilter: string;
   onIndustryFilterChange: (value: string) => void;
+  provinceFilter: string; // Add province filter prop
+  onProvinceFilterChange: (value: string) => void; // Add province filter change handler
   onApplyFilters: () => void;
   onResetFilters: () => void;
 }
@@ -50,6 +52,8 @@ export const SearchAndFiltersHeader = ({
   onPageSizeChange,
   industryFilter,
   onIndustryFilterChange,
+  provinceFilter, // Add province filter
+  onProvinceFilterChange, // Add province filter change handler
   onApplyFilters,
   onResetFilters,
 }: SearchAndFiltersHeaderProps) => {
@@ -63,6 +67,7 @@ export const SearchAndFiltersHeader = ({
   );
   const [localPageSize, setLocalPageSize] = React.useState(pageSize);
   const [localIndustryFilter, setLocalIndustryFilter] = React.useState(industryFilter);
+  const [localProvinceFilter, setLocalProvinceFilter] = React.useState(provinceFilter); // Add local province filter state
 
   // Use shorter debounce for better UX, with leading edge for immediate feedback and maxWait for guaranteed updates
   const debouncedSearchQuery = useDebouncedValue(localSearchQuery, 300, { leading: true, maxWait: 1000 });
@@ -95,6 +100,10 @@ export const SearchAndFiltersHeader = ({
     setLocalIndustryFilter(industryFilter || "");
   }, [industryFilter]);
 
+  React.useEffect(() => {
+    setLocalProvinceFilter(provinceFilter || ""); // Sync province filter
+  }, [provinceFilter]);
+
   const handleDateFromChange = (date: Date | undefined) => {
     setDateFromObj(date);
     onDateFromChange(date ? date.toISOString().split("T")[0] : "");
@@ -118,6 +127,13 @@ export const SearchAndFiltersHeader = ({
     onIndustryFilterChange(apiValue);
   };
 
+  const handleProvinceFilterChange = (value: string) => {
+    // Convert "__all__" back to empty string for the API
+    const apiValue = value === "__all__" ? "" : value;
+    setLocalProvinceFilter(apiValue);
+    onProvinceFilterChange(apiValue);
+  };
+
   const resetFilters = () => {
     const today = new Date();
     const startOfYear = new Date(2024, 0, 1);
@@ -132,6 +148,8 @@ export const SearchAndFiltersHeader = ({
     onPageSizeChange(50);
     setLocalIndustryFilter("");
     onIndustryFilterChange("");
+    setLocalProvinceFilter(""); // Reset province filter
+    onProvinceFilterChange(""); // Reset province filter
     onResetFilters();
   };
 
@@ -220,6 +238,26 @@ export const SearchAndFiltersHeader = ({
           </Select>
         </div>
 
+        {/* Province Filter */}
+        <div>
+          <label className="text-sm font-medium text-foreground mb-2 block">
+            Province:
+          </label>
+          <Select value={localProvinceFilter || "__all__"} onValueChange={handleProvinceFilterChange}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select province" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All Provinces</SelectItem>
+              {PROVINCES.map((province) => (
+                <SelectItem key={province} value={province}>
+                  {province}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <div>
           <label className="text-sm font-medium text-foreground mb-2 block">
             Results per page:
@@ -229,14 +267,11 @@ export const SearchAndFiltersHeader = ({
             onChange={(e) => handlePageSizeChange(e.target.value)}
             className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <option value="10">10 results</option>
-            <option value="50">50 results</option>
-            <option value="100">100 results</option>
             <option value="500">500 results</option>
             <option value="1000">1000 results</option>
             <option value="5000">5000 results</option>
             <option value="10000">10000 results</option>
-            <option value="20000">20000 results</option>
+            <option value="20000">20000 results (default)</option>
           </select>
         </div>
       </div>

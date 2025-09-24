@@ -19,6 +19,7 @@ interface FilterState {
   dateTo: string;
   pageSize: number;
   industryFilter: string;
+  provinceFilter: string; // Add province filter
   currentPage: number;
 }
 
@@ -29,6 +30,7 @@ type FilterAction =
   | { type: "SET_DATE_TO"; payload: string }
   | { type: "SET_PAGE_SIZE"; payload: number }
   | { type: "SET_INDUSTRY_FILTER"; payload: string }
+  | { type: "SET_PROVINCE_FILTER"; payload: string } // Add province filter action
   | { type: "SET_CURRENT_PAGE"; payload: number }
   | { type: "RESET_FILTERS" }
   | { type: "APPLY_FILTERS" };
@@ -38,8 +40,9 @@ const initialFilterState: FilterState = {
   searchQuery: "",
   dateFrom: "2024-01-01",
   dateTo: new Date().toISOString().split("T")[0],
-  pageSize: 50,
+  pageSize: 20000, // Default to maximum to show as many results as possible
   industryFilter: "",
+  provinceFilter: "", // Add province filter
   currentPage: 1,
 };
 
@@ -56,6 +59,8 @@ function filterReducer(state: FilterState, action: FilterAction): FilterState {
       return { ...state, pageSize: action.payload, currentPage: 1 };
     case "SET_INDUSTRY_FILTER":
       return { ...state, industryFilter: action.payload, currentPage: 1 };
+    case "SET_PROVINCE_FILTER":
+      return { ...state, provinceFilter: action.payload, currentPage: 1 }; // Add province filter case
     case "SET_CURRENT_PAGE":
       return { ...state, currentPage: action.payload };
     case "RESET_FILTERS":
@@ -85,6 +90,7 @@ function HomeContent() {
         searchParams.get("dateTo") || new Date().toISOString().split("T")[0],
       pageSize: parseInt(searchParams.get("pageSize") || "50", 10),
       industryFilter: searchParams.get("industry") || "",
+      provinceFilter: searchParams.get("province") || "", // Add province filter
       currentPage: parseInt(searchParams.get("page") || "1", 10),
     };
   };
@@ -99,9 +105,11 @@ function HomeContent() {
     dateTo: filterState.dateTo,
     searchQuery: filterState.searchQuery,
     industryFilter: filterState.industryFilter,
+    provinceFilter: filterState.provinceFilter, // Add province filter
   });
 
-  const releases = (data as any)?.releases || [];
+  // Properly typed data extraction
+  const releases = data?.releases || [];
   const hasNextPage = Boolean(data?.links?.next);
 
   // Memoize expensive date calculations
@@ -192,7 +200,7 @@ function HomeContent() {
 
   // Memoize processed releases to avoid recalculating on every render
   const processedReleases = useMemo(() => {
-    return releases.map((release: any) => {
+    return releases.map((release) => {
       const tender = release.tender || {
         id: "",
         title: "",
@@ -268,6 +276,9 @@ function HomeContent() {
         case "SET_INDUSTRY_FILTER":
           updateUrlParams({ industry: action.payload, page: 1 });
           break;
+        case "SET_PROVINCE_FILTER":
+          updateUrlParams({ province: action.payload, page: 1 });
+          break;
         case "SET_CURRENT_PAGE":
           updateUrlParams({ page: action.payload });
           break;
@@ -278,6 +289,7 @@ function HomeContent() {
             dateTo: new Date().toISOString().split("T")[0],
             pageSize: 50,
             industry: "",
+            province: "",
             page: 1,
           });
           break;
@@ -367,6 +379,10 @@ function HomeContent() {
         onIndustryFilterChange={(value) =>
           handleFilterChange({ type: "SET_INDUSTRY_FILTER", payload: value })
         }
+        provinceFilter={filterState.provinceFilter}
+        onProvinceFilterChange={(value) =>
+          handleFilterChange({ type: "SET_PROVINCE_FILTER", payload: value })
+        }
         onApplyFilters={() => handleFilterChange({ type: "APPLY_FILTERS" })}
         onResetFilters={() => handleFilterChange({ type: "RESET_FILTERS" })}
       />
@@ -398,8 +414,9 @@ function HomeContent() {
 
         <div className="mb-4 flex justify-between items-center text-sm text-muted-foreground">
           <span>
-            Showing {releases.length} results on page {filterState.currentPage}
-            {hasNextPage && " (more pages available)"}
+            Showing {releases.length} results
+            {filterState.pageSize < 20000 && ` on page ${filterState.currentPage}`}
+            {filterState.pageSize < 20000 && hasNextPage && " (more pages available)"}
           </span>
           <div className="flex items-center gap-4">
             <Button
@@ -414,7 +431,7 @@ function HomeContent() {
               />
               Refresh
             </Button>
-            <span>Page: {filterState.currentPage}</span>
+            {filterState.pageSize < 20000 && <span>Page: {filterState.currentPage}</span>}
           </div>
         </div>
 
@@ -476,24 +493,27 @@ function HomeContent() {
           )}
         </div>
 
-        <div className="flex justify-center gap-2">
-          <Button
-            onClick={() =>
-              handlePageChange(Math.max(1, filterState.currentPage - 1))
-            }
-            disabled={filterState.currentPage <= 1}
-            variant="outline"
-          >
-            Previous
-          </Button>
-          <Button
-            onClick={() => handlePageChange(filterState.currentPage + 1)}
-            disabled={!hasNextPage}
-            variant="outline"
-          >
-            Next
-          </Button>
-        </div>
+        {/* Show pagination controls only if we're not showing all results */}
+        {filterState.pageSize < 20000 && (
+          <div className="flex justify-center gap-2">
+            <Button
+              onClick={() =>
+                handlePageChange(Math.max(1, filterState.currentPage - 1))
+              }
+              disabled={filterState.currentPage <= 1}
+              variant="outline"
+            >
+              Previous
+            </Button>
+            <Button
+              onClick={() => handlePageChange(filterState.currentPage + 1)}
+              disabled={!hasNextPage}
+              variant="outline"
+            >
+              Next
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

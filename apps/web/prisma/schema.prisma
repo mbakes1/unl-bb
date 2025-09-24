@@ -8,8 +8,8 @@ datasource db {
 }
 
 model Release {
-  id                      Int      @id @default(autoincrement())
-  ocid                    String   @unique
+  id                      Int                      @id @default(autoincrement())
+  ocid                    String                   @unique
   releaseDate             DateTime
   data                    Json
   title                   String?
@@ -17,10 +17,12 @@ model Release {
   status                  String?
   procurementMethod       String?
   mainProcurementCategory String?
+  province                String?
   valueAmount             Float?
   currency                String?
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  searchVector            Unsupported("tsvector")?
 
   @@index([releaseDate])
   @@index([buyerName])
@@ -29,4 +31,7 @@ model Release {
   @@index([procurementMethod])
   @@index([status])
   @@index([valueAmount])
+  @@index([ocid])
+  @@index([province])
+  @@index([searchVector], type: Gin)
 }

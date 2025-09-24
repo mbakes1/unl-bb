@@ -9,6 +9,7 @@ export const queryKeys = {
       dateFrom: string;
       dateTo: string;
       searchQuery?: string;
+      industryFilter?: string;
     }) => [...queryKeys.releases.lists(), params] as const,
     details: () => [...queryKeys.releases.all, "detail"] as const,
     detail: (ocid: string) => [...queryKeys.releases.details(), ocid] as const,

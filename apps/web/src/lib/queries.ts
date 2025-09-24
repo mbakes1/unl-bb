@@ -23,10 +23,11 @@ interface ReleasesParams {
   dateTo: string;
   searchQuery?: string;
   industryFilter?: string;
+  provinceFilter?: string;
 }
 
 // Fetch releases with pagination and filters
-const fetchReleases = async (
+export const fetchReleases = async (
   params: ReleasesParams
 ): Promise<ReleasesResponse> => {
   const searchParams = new URLSearchParams({
@@ -46,10 +47,20 @@ const fetchReleases = async (
     searchParams.append("mainProcurementCategory", apiValue);
   }
 
+  if (params.provinceFilter) {
+    // Convert "__all__" back to empty string for the API
+    const apiValue = params.provinceFilter === "__all__" ? "" : params.provinceFilter;
+    searchParams.append("province", apiValue);
+  }
+
   // Add performance tracking
   const startTime = performance.now();
   
-  const response = await fetch(`/api/OCDSReleases?${searchParams}`);
+  console.log("Fetching releases with params:", Object.fromEntries(searchParams));
+  const url = `/api/OCDSReleases?${searchParams}`;
+  console.log("Fetching URL:", url);
+  
+  const response = await fetch(url);
 
   const endTime = performance.now();
   const duration = endTime - startTime;
@@ -59,15 +70,21 @@ const fetchReleases = async (
     console.warn(`Slow API request: ${duration}ms for params`, params);
   }
 
+  console.log("API response status:", response.status);
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    const errorText = await response.text();
+    console.error("API error response:", errorText);
+    throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
   }
 
-  return response.json();
+  const jsonData = await response.json();
+  console.log("API response data:", jsonData);
+  
+  return jsonData;
 };
 
 // Fetch single release detail
-const fetchReleaseDetail = async (ocid: string): Promise<DetailedRelease> => {
+export const fetchReleaseDetail = async (ocid: string): Promise<DetailedRelease> => {
   const response = await fetch(
     `/api/OCDSReleases/release/${encodeURIComponent(ocid)}`
   );
@@ -87,10 +104,10 @@ export const useReleases = (params: ReleasesParams) => {
     enabled: Boolean(
       params.pageNumber && params.pageSize && params.dateFrom && params.dateTo
     ),
-    staleTime: 5 * 60 * 1000, // 5 minutes - data is fresh for 5 minutes
+    staleTime: 0, // Always fetch fresh data for testing
     gcTime: 15 * 60 * 1000, // 15 minutes - keep in cache longer for better UX
     refetchOnWindowFocus: false, // Don't refetch when window regains focus
-    refetchOnMount: false, // Don't refetch on component mount if data exists
+    refetchOnMount: true, // Always refetch on component mount
   });
 };
 

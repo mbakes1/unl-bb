@@ -18,8 +18,9 @@ export async function GET(request: NextRequest) {
 
     // Parse query parameters
     const page = parseInt(searchParams.get("PageNumber") || "1");
+    // Default to maximum allowed page size if not specified, to show most results possible
     const pageSize = Math.min(
-      parseInt(searchParams.get("PageSize") || "50"),
+      parseInt(searchParams.get("PageSize") || "20000"),
       20000
     );
     const dateFrom = searchParams.get("dateFrom");
@@ -32,6 +33,7 @@ export async function GET(request: NextRequest) {
     const minValue = searchParams.get("minValue");
     const maxValue = searchParams.get("maxValue");
     const currency = searchParams.get("currency");
+    const province = searchParams.get("province"); // Add province filter
     const sortBy = searchParams.get("sortBy") || "releaseDate";
     const sortOrder = searchParams.get("sortOrder") || "desc";
 
@@ -99,6 +101,11 @@ export async function GET(request: NextRequest) {
     // Currency filter
     if (currency) {
       conditions.push(Prisma.sql`"currency" = ${currency}`);
+    }
+    
+    // Province filter
+    if (province && province !== "__all__") {
+      conditions.push(Prisma.sql`"province" = ${province}`);
     }
     
     // Industry filter
@@ -197,61 +204,78 @@ export async function GET(request: NextRequest) {
 // Populate initial data on first request
 async function populateInitialData() {
   try {
-    // Add required date parameters
+    // Add required date parameters (use broader date range)
     const dateTo = new Date().toISOString().split("T")[0]; // Today
-    const dateFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0]; // 30 days ago
+    const dateFrom = "2024-01-01"; // Start from beginning of 2024
 
-    const response = await fetch(
-      `https://ocds-api.etenders.gov.za/api/OCDSReleases?pageSize=50&PageNumber=1&dateFrom=${dateFrom}&dateTo=${dateTo}`
-    );
+    // We'll fetch multiple pages to get more initial data
+    const maxPages = 5; // Fetch first 5 pages
+    let totalReleases = 0;
 
-    if (!response.ok) {
-      throw new Error(`External API error: ${response.status}`);
-    }
+    for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+      const response = await fetch(
+        `https://ocds-api.etenders.gov.za/api/OCDSReleases?pageSize=100&PageNumber=${pageNum}&dateFrom=${dateFrom}&dateTo=${dateTo}`
+      );
 
-    const data = await response.json();
-    const releases = data.releases || [];
+      if (!response.ok) {
+        throw new Error(`External API error: ${response.status}`);
+      }
 
-    console.log(`Populating ${releases.length} initial releases...`);
+      const data = await response.json();
+      const releases = data.releases || [];
 
-    for (const release of releases) {
-      try {
-        const title = release.tender?.title || "";
-        const buyerName =
-          release.buyer?.name || release.tender?.procuringEntity?.name || "";
-        const status = release.tender?.status || "";
-        const procurementMethod = release.tender?.procurementMethod || "";
-        const mainProcurementCategory = release.tender?.mainProcurementCategory || "";
-        const valueAmount = release.tender?.value?.amount || null;
-        const currency = release.tender?.value?.currency || null;
-        const releaseDate = release.date ? new Date(release.date) : new Date();
-        
-        // Create search vector using PostgreSQL's to_tsvector function
-        const searchVector = `${title} ${buyerName} ${status} ${procurementMethod}`;
+      console.log(`Populating ${releases.length} releases from page ${pageNum}...`);
 
-        // Use raw SQL to insert with searchVector since it's Unsupported in Prisma
-        await prisma.$executeRaw`
-          INSERT INTO "public"."Release" (
-            "ocid", "releaseDate", "data", "title", "buyerName", "status", 
-            "procurementMethod", "mainProcurementCategory", "valueAmount", "currency", "searchVector"
-          ) VALUES (
-            ${release.ocid}, ${releaseDate}, ${release}, ${title}, ${buyerName}, ${status},
-            ${procurementMethod}, ${mainProcurementCategory}, ${valueAmount}, ${currency}, 
-            setweight(to_tsvector('english', ${title}), 'A') ||
-            setweight(to_tsvector('english', ${buyerName}), 'B') ||
-            setweight(to_tsvector('english', ${status}), 'C') ||
-            setweight(to_tsvector('english', ${procurementMethod}), 'C')
-          )
-        `;
-      } catch (error) {
-        // Skip duplicates or other errors
-        console.error(`Error creating release ${release.ocid}:`, error);
+      if (releases.length === 0) {
+        // No more data, break out of the loop
+        break;
+      }
+
+      for (const release of releases) {
+        try {
+          const title = release.tender?.title || "";
+          const buyerName =
+            release.buyer?.name || release.tender?.procuringEntity?.name || "";
+          const status = release.tender?.status || "";
+          const procurementMethod = release.tender?.procurementMethod || "";
+          const mainProcurementCategory = release.tender?.mainProcurementCategory || "";
+          const valueAmount = release.tender?.value?.amount || null;
+          const currency = release.tender?.value?.currency || null;
+          const releaseDate = release.date ? new Date(release.date) : new Date();
+          
+          // Create search vector using PostgreSQL's to_tsvector function
+          const searchVector = `${title} ${buyerName} ${status} ${procurementMethod}`;
+
+          // Use raw SQL to insert with searchVector since it's Unsupported in Prisma
+          await prisma.$executeRaw`
+            INSERT INTO "public"."Release" (
+              "ocid", "releaseDate", "data", "title", "buyerName", "status", 
+              "procurementMethod", "mainProcurementCategory", "valueAmount", "currency", "searchVector"
+            ) VALUES (
+              ${release.ocid}, ${releaseDate}, ${release}, ${title}, ${buyerName}, ${status},
+              ${procurementMethod}, ${mainProcurementCategory}, ${valueAmount}, ${currency}, 
+              setweight(to_tsvector('english', ${title}), 'A') ||
+              setweight(to_tsvector('english', ${buyerName}), 'B') ||
+              setweight(to_tsvector('english', ${status}), 'C') ||
+              setweight(to_tsvector('english', ${procurementMethod}), 'C')
+            )
+          `;
+        } catch (error) {
+          // Skip duplicates or other errors
+          console.error(`Error creating release ${release.ocid}:`, error);
+        }
+      }
+
+      totalReleases += releases.length;
+      console.log(`Completed page ${pageNum}, total releases so far: ${totalReleases}`);
+
+      // Stop if we received less than a full page (meaning no more data)
+      if (releases.length < 100) {
+        break;
       }
     }
 
-    console.log("Initial data population completed");
+    console.log(`Initial data population completed with ${totalReleases} releases`);
   } catch (error) {
     console.error("Failed to populate initial data:", error);
     throw error;
@@ -261,67 +285,75 @@ async function populateInitialData() {
 // Background refresh function
 async function refreshDataInBackground() {
   try {
-    // Add required date parameters
+    // Add required date parameters (use broader date range)
     const dateTo = new Date().toISOString().split("T")[0]; // Today
-    const dateFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0]; // 30 days ago
+    const dateFrom = "2024-01-01"; // Start from beginning of 2024
 
-    const response = await fetch(
-      `https://ocds-api.etenders.gov.za/api/OCDSReleases?pageSize=100&PageNumber=1&dateFrom=${dateFrom}&dateTo=${dateTo}`
-    );
+    // We'll fetch multiple pages to get more data during background refresh
+    const maxPages = 3; // Fetch first 3 pages of new/updated data
+    for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+      const response = await fetch(
+        `https://ocds-api.etenders.gov.za/api/OCDSReleases?pageSize=100&PageNumber=${pageNum}&dateFrom=${dateFrom}&dateTo=${dateTo}`
+      );
 
-    if (!response.ok) return;
+      if (!response.ok) return;
 
-    const data = await response.json();
-    const releases = data.releases || [];
+      const data = await response.json();
+      const releases = data.releases || [];
 
-    for (const release of releases) {
-      try {
-        const title = release.tender?.title || "";
-        const buyerName =
-          release.buyer?.name || release.tender?.procuringEntity?.name || "";
-        const status = release.tender?.status || "";
-        const procurementMethod = release.tender?.procurementMethod || "";
-        const mainProcurementCategory = release.tender?.mainProcurementCategory || "";
-        const valueAmount = release.tender?.value?.amount || null;
-        const currency = release.tender?.value?.currency || null;
-        const releaseDate = release.date ? new Date(release.date) : new Date();
-        
-        // Create search vector using PostgreSQL's to_tsvector function
-        const searchVector = `${title} ${buyerName} ${status} ${procurementMethod}`;
+      for (const release of releases) {
+        try {
+          const title = release.tender?.title || "";
+          const buyerName =
+            release.buyer?.name || release.tender?.procuringEntity?.name || "";
+          const status = release.tender?.status || "";
+          const procurementMethod = release.tender?.procurementMethod || "";
+          const mainProcurementCategory = release.tender?.mainProcurementCategory || "";
+          const valueAmount = release.tender?.value?.amount || null;
+          const currency = release.tender?.value?.currency || null;
+          const releaseDate = release.date ? new Date(release.date) : new Date();
+          
+          // Create search vector using PostgreSQL's to_tsvector function
+          const searchVector = `${title} ${buyerName} ${status} ${procurementMethod}`;
 
-        // Use raw SQL for upsert since searchVector is Unsupported in Prisma
-        await prisma.$executeRaw`
-          INSERT INTO "public"."Release" (
-            "ocid", "releaseDate", "data", "title", "buyerName", "status", 
-            "procurementMethod", "mainProcurementCategory", "valueAmount", "currency", "searchVector"
-          ) VALUES (
-            ${release.ocid}, ${releaseDate}, ${release}, ${title}, ${buyerName}, ${status},
-            ${procurementMethod}, ${mainProcurementCategory}, ${valueAmount}, ${currency},
-            setweight(to_tsvector('english', ${title}), 'A') ||
-            setweight(to_tsvector('english', ${buyerName}), 'B') ||
-            setweight(to_tsvector('english', ${status}), 'C') ||
-            setweight(to_tsvector('english', ${procurementMethod}), 'C')
-          )
-          ON CONFLICT ("ocid") DO UPDATE SET
-            "releaseDate" = EXCLUDED."releaseDate",
-            "data" = EXCLUDED."data",
-            "title" = EXCLUDED."title",
-            "buyerName" = EXCLUDED."buyerName",
-            "status" = EXCLUDED."status",
-            "procurementMethod" = EXCLUDED."procurementMethod",
-            "mainProcurementCategory" = EXCLUDED."mainProcurementCategory",
-            "valueAmount" = EXCLUDED."valueAmount",
-            "currency" = EXCLUDED."currency",
-            "searchVector" = 
-              setweight(to_tsvector('english', EXCLUDED."title"), 'A') ||
-              setweight(to_tsvector('english', EXCLUDED."buyerName"), 'B') ||
-              setweight(to_tsvector('english', EXCLUDED."status"), 'C') ||
-              setweight(to_tsvector('english', EXCLUDED."procurementMethod"), 'C')
-        `;
-      } catch (error) {
-        // Continue with other releases
+          // Use raw SQL for upsert since searchVector is Unsupported in Prisma
+          await prisma.$executeRaw`
+            INSERT INTO "public"."Release" (
+              "ocid", "releaseDate", "data", "title", "buyerName", "status", 
+              "procurementMethod", "mainProcurementCategory", "valueAmount", "currency", "searchVector"
+            ) VALUES (
+              ${release.ocid}, ${releaseDate}, ${release}, ${title}, ${buyerName}, ${status},
+              ${procurementMethod}, ${mainProcurementCategory}, ${valueAmount}, ${currency},
+              setweight(to_tsvector('english', ${title}), 'A') ||
+              setweight(to_tsvector('english', ${buyerName}), 'B') ||
+              setweight(to_tsvector('english', ${status}), 'C') ||
+              setweight(to_tsvector('english', ${procurementMethod}), 'C')
+            )
+            ON CONFLICT ("ocid") DO UPDATE SET
+              "releaseDate" = EXCLUDED."releaseDate",
+              "data" = EXCLUDED."data",
+              "title" = EXCLUDED."title",
+              "buyerName" = EXCLUDED."buyerName",
+              "status" = EXCLUDED."status",
+              "procurementMethod" = EXCLUDED."procurementMethod",
+              "mainProcurementCategory" = EXCLUDED."mainProcurementCategory",
+              "valueAmount" = EXCLUDED."valueAmount",
+              "currency" = EXCLUDED."currency",
+              "searchVector" = 
+                setweight(to_tsvector('english', EXCLUDED."title"), 'A') ||
+                setweight(to_tsvector('english', EXCLUDED."buyerName"), 'B') ||
+                setweight(to_tsvector('english', EXCLUDED."status"), 'C') ||
+                setweight(to_tsvector('english', EXCLUDED."procurementMethod"), 'C')
+          `;
+        } catch (error) {
+          // Continue with other releases
+          console.error(`Error upserting release ${release.ocid}:`, error);
+        }
+      }
+
+      // Stop if we received less than a full page (meaning no more data)
+      if (releases.length < 100) {
+        break;
       }
     }
   } catch (error) {

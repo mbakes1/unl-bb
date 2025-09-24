@@ -1,7 +1,7 @@
 // /apps/web/src/lib/processAndSavePage.ts
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
-import { extractIndustry } from '@/lib/data-enrichment';
+import { extractIndustry, extractProvince } from '@/lib/data-enrichment';
 
 // This function processes and saves a page of releases using bulk operations for better performance
 export async function processAndSavePage(releases: any[]) {
@@ -47,6 +47,9 @@ async function processBatch(releases: any[]) {
       // This replaces the need for a separate backfill script
       const mainProcurementCategory = extractIndustry(title) || release.tender?.mainProcurementCategory || "";
       
+      // Extract province information
+      const province = extractProvince(title) || extractProvinceFromData(release) || "";
+      
       releaseData.push({
         ocid: release.ocid,
         releaseDate: releaseDate,
@@ -56,6 +59,7 @@ async function processBatch(releases: any[]) {
         status: status,
         procurementMethod: procurementMethod,
         mainProcurementCategory: mainProcurementCategory,
+        province: province,
         valueAmount: valueAmount,
         currency: currency,
       });
@@ -69,13 +73,13 @@ async function processBatch(releases: any[]) {
     try {
       // Use a single raw SQL statement for bulk upsert with proper parameterization
       const values = releaseData.map(release => 
-        Prisma.sql`(${release.ocid}, ${release.releaseDate}, ${release.data}, ${release.title}, ${release.buyerName}, ${release.status}, ${release.procurementMethod}, ${release.mainProcurementCategory}, ${release.valueAmount}, ${release.currency}, NOW(), NOW())`
+        Prisma.sql`(${release.ocid}, ${release.releaseDate}, ${release.data}, ${release.title}, ${release.buyerName}, ${release.status}, ${release.procurementMethod}, ${release.mainProcurementCategory}, ${release.province || null}, ${release.valueAmount}, ${release.currency}, NOW(), NOW())`
       );
       
       await prisma.$executeRaw`
         INSERT INTO "Release" (
           "ocid", "releaseDate", "data", "title", "buyerName", "status", 
-          "procurementMethod", "mainProcurementCategory", "valueAmount", "currency", "createdAt", "updatedAt"
+          "procurementMethod", "mainProcurementCategory", "province", "valueAmount", "currency", "createdAt", "updatedAt"
         ) VALUES ${Prisma.join(values, ', ')}
         ON CONFLICT ("ocid") DO UPDATE SET
           "releaseDate" = EXCLUDED."releaseDate",
@@ -85,6 +89,7 @@ async function processBatch(releases: any[]) {
           "status" = EXCLUDED."status",
           "procurementMethod" = EXCLUDED."procurementMethod",
           "mainProcurementCategory" = EXCLUDED."mainProcurementCategory",
+          "province" = EXCLUDED."province",
           "valueAmount" = EXCLUDED."valueAmount",
           "currency" = EXCLUDED."currency",
           "updatedAt" = NOW()
@@ -98,10 +103,10 @@ async function processBatch(releases: any[]) {
           await prisma.$executeRaw`
             INSERT INTO "Release" (
               "ocid", "releaseDate", "data", "title", "buyerName", "status", 
-              "procurementMethod", "mainProcurementCategory", "valueAmount", "currency", "createdAt", "updatedAt"
+              "procurementMethod", "mainProcurementCategory", "province", "valueAmount", "currency", "createdAt", "updatedAt"
             ) VALUES (
               ${release.ocid}, ${release.releaseDate}, ${release.data}, ${release.title}, ${release.buyerName}, ${release.status},
-              ${release.procurementMethod}, ${release.mainProcurementCategory}, ${release.valueAmount}, ${release.currency}, NOW(), NOW()
+              ${release.procurementMethod}, ${release.mainProcurementCategory}, ${release.province || null}, ${release.valueAmount}, ${release.currency}, NOW(), NOW()
             )
             ON CONFLICT ("ocid") DO UPDATE SET
               "releaseDate" = EXCLUDED."releaseDate",
@@ -111,6 +116,7 @@ async function processBatch(releases: any[]) {
               "status" = EXCLUDED."status",
               "procurementMethod" = EXCLUDED."procurementMethod",
               "mainProcurementCategory" = EXCLUDED."mainProcurementCategory",
+              "province" = EXCLUDED."province",
               "valueAmount" = EXCLUDED."valueAmount",
               "currency" = EXCLUDED."currency",
               "updatedAt" = NOW()
@@ -121,4 +127,25 @@ async function processBatch(releases: any[]) {
       }
     }
   }
+}
+
+// Helper function to extract province information from the full data object
+function extractProvinceFromData(data: any): string | null {
+  // Try to find province information in various fields of the data object
+  const dataStr = JSON.stringify(data);
+  
+  // Common province names in South Africa
+  const provinces = [
+    'Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape', 
+    'Limpopo', 'Mpumalanga', 'North West', 'Free State', 'Northern Cape'
+  ];
+  
+  // Check if any province name appears in the data
+  for (const province of provinces) {
+    if (dataStr.includes(province)) {
+      return province;
+    }
+  }
+  
+  return null;
 }

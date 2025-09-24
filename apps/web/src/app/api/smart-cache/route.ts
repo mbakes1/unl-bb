@@ -37,9 +37,10 @@ export async function GET(request: NextRequest) {
 
     // Always return current data immediately (even if stale)
     const page = parseInt(searchParams.get("PageNumber") || "1");
+    // Default to maximum allowed page size if not specified, to show most results possible
     const pageSize = Math.min(
-      parseInt(searchParams.get("PageSize") || "50"),
-      100
+      parseInt(searchParams.get("PageSize") || "20000"),
+      20000
     );
     const dateFrom = searchParams.get("dateFrom");
     const dateTo = searchParams.get("dateTo");
